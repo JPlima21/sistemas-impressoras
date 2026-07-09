@@ -20,8 +20,16 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_DIR = PROJECT_ROOT / "frontend"
 
 
+def _obter_usuario_auth():
+    return os.getenv("API_USER") or ""
+
+
+def _obter_senha_auth():
+    return os.getenv("API_PASSWORD") or ""
+
+
 def _auth_configurada():
-    return bool(os.getenv("APP_AUTH_USER") and os.getenv("APP_AUTH_PASSWORD"))
+    return bool(_obter_usuario_auth() and _obter_senha_auth())
 
 
 def _resposta_auth_requerida():
@@ -74,6 +82,9 @@ def _registrar_autenticacao_basica(app):
         if request.method == "OPTIONS":
             return None
 
+        if not request.path.startswith("/api"):
+            return None
+
         if request.endpoint == "static" or not _auth_configurada():
             return None
 
@@ -81,8 +92,8 @@ def _registrar_autenticacao_basica(app):
         if not auth:
             return _resposta_auth_requerida()
 
-        usuario = os.getenv("APP_AUTH_USER") or ""
-        senha = os.getenv("APP_AUTH_PASSWORD") or ""
+        usuario = _obter_usuario_auth()
+        senha = _obter_senha_auth()
 
         usuario_ok = hmac.compare_digest(auth.username or "", usuario)
         senha_ok = hmac.compare_digest(auth.password or "", senha)
@@ -102,7 +113,6 @@ def create_app():
         static_url_path="/static",
     )
     _registrar_cors(app)
-    _registrar_autenticacao_basica(app)
     armazenamento_mariadb = None
     inicializar_banco(armazenamento_mariadb)
     printer_config_service = PrinterConfigService(armazenamento_mariadb)
