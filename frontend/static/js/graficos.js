@@ -20,6 +20,8 @@ const graficosState = {
     impressoesUsuarios: [],
     eventosImpressoesUsuarios: [],
     impressoesUsuariosPorMes: new Map(),
+    usuarioDetalhesAtual: "",
+    periodoDetalhesUsuario: { inicio: "", fim: "" },
     periodoLinhaHistorico: "dia",
     datasSalvamentoPorData: new Map(),
     rotulosImpressoras: new Map(),
@@ -237,10 +239,18 @@ function normalizarResumoUsuario(registro) {
 
 function normalizarImpressaoUsuario(registro) {
     return {
+        servidor: String(registro?.servidor || "").trim(),
+        record_id: registro?.record_id || "",
+        event_id: registro?.event_id || "",
+        data_hora: registro?.data_hora || "",
         usuario: String(registro?.usuario || "").trim(),
         impressora: String(registro?.impressora || "").trim(),
-        data_hora: registro?.data_hora || "",
+        documento: String(registro?.documento || "").trim(),
         paginas: Number(registro?.paginas || 0),
+        computador: String(registro?.computador || "").trim(),
+        job_id: String(registro?.job_id || "").trim(),
+        porta: String(registro?.porta || "").trim(),
+        tamanho_bytes: registro?.tamanho_bytes || "",
     };
 }
 
@@ -355,6 +365,24 @@ function adicionarTituloTooltip(elemento, texto) {
     elemento.appendChild(title);
 }
 
+function vincularAcaoItemSvg(elemento, item, opcoes = {}) {
+    if (typeof opcoes.onItemClick !== "function") {
+        return;
+    }
+
+    elemento.classList.add("svg-bar-clickable");
+    elemento.setAttribute("role", "button");
+    elemento.setAttribute("tabindex", "0");
+    elemento.setAttribute("aria-label", `Ver jobs de ${item.nome || item.usuario || item.id}`);
+    elemento.addEventListener("click", () => opcoes.onItemClick(item));
+    elemento.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            opcoes.onItemClick(item);
+        }
+    });
+}
+
 function desenharGradeY(svg, area, maxValue, steps = 5) {
     const safeMax = Math.max(maxValue, 1);
 
@@ -426,6 +454,7 @@ function renderizarGraficoColunas(hostId, tituloVazio, itens, campoValor, corPri
             ? `${item.nome}: ${formatarNumero(valor)} paginas | Trabalhos: ${formatarNumero(item.total_trabalhos || 0)}`
             : `${item.nome}: ${formatarNumero(valor)} impressoes | ${tokenRotulo} ${formatarMoeda(item.token_valor)} | Total ${formatarMoeda(valorToken)}`;
         adicionarTituloTooltip(rect, textoTooltip);
+        vincularAcaoItemSvg(rect, item, opcoes);
         svg.appendChild(rect);
 
         const yLabel = Math.max(yBarra - 22, 16);
@@ -456,7 +485,11 @@ function renderizarGraficoColunas(hostId, tituloVazio, itens, campoValor, corPri
             "end",
         );
         labelX.setAttribute("transform", `rotate(-45 ${xCentro} ${area.y + area.height + 34})`);
+        if (typeof opcoes.onItemClick === "function") {
+            labelX.classList.add("svg-label-clickable");
+        }
         adicionarTituloTooltip(labelX, item.nome);
+        vincularAcaoItemSvg(labelX, item, opcoes);
     });
 }
 
@@ -1184,6 +1217,247 @@ function inicializarAbasGraficos() {
     });
 }
 
+function obterFimMesExclusivo(mesReferencia) {
+    const [ano, mes] = String(mesReferencia || "").split("-").map(Number);
+
+    if (!ano || !mes) {
+        return "";
+    }
+
+    const proximoMes = new Date(ano, mes, 1);
+    const anoFim = String(proximoMes.getFullYear());
+    const mesFim = String(proximoMes.getMonth() + 1).padStart(2, "0");
+    return `${anoFim}-${mesFim}-01`;
+}
+
+function obterFimDataExclusivo(dataReferencia) {
+    const [ano, mes, dia] = String(dataReferencia || "").split("-").map(Number);
+
+    if (!ano || !mes || !dia) {
+        return "";
+    }
+
+    const dataFim = new Date(ano, mes - 1, dia + 1);
+    const anoFim = String(dataFim.getFullYear());
+    const mesFim = String(dataFim.getMonth() + 1).padStart(2, "0");
+    const diaFim = String(dataFim.getDate()).padStart(2, "0");
+    return `${anoFim}-${mesFim}-${diaFim}`;
+}
+
+function obterPeriodoDetalhesUsuarioPadrao() {
+    const mesSelecionado = document.getElementById("filtro-usuarios-mes")?.value || obterMesAtualIso();
+
+    return {
+        inicio: `${mesSelecionado}-01`,
+        fim: obterFimMesExclusivo(mesSelecionado),
+    };
+}
+
+function obterPeriodoDetalhesUsuarioSelecionado() {
+    const inicio = document.getElementById("filtro-modal-usuario-data-inicio")?.value || "";
+    const fimSelecionado = document.getElementById("filtro-modal-usuario-data-fim")?.value || "";
+
+    return {
+        inicio,
+        fim: obterFimDataExclusivo(fimSelecionado),
+    };
+}
+
+function formatarPeriodoDetalhesUsuario(periodo) {
+    const inicio = formatarDataIso(periodo.inicio);
+    const fimInclusivo = periodo.fim ? formatarDataIso(obterDataAnterior(periodo.fim)) : "";
+
+    if (inicio && fimInclusivo) {
+        return `${inicio} a ${fimInclusivo}`;
+    }
+
+    return inicio || fimInclusivo || "Periodo nao definido";
+}
+
+function obterDataAnterior(dataReferencia) {
+    const [ano, mes, dia] = String(dataReferencia || "").split("-").map(Number);
+
+    if (!ano || !mes || !dia) {
+        return "";
+    }
+
+    const data = new Date(ano, mes - 1, dia - 1);
+    const anoAnterior = String(data.getFullYear());
+    const mesAnterior = String(data.getMonth() + 1).padStart(2, "0");
+    const diaAnterior = String(data.getDate()).padStart(2, "0");
+    return `${anoAnterior}-${mesAnterior}-${diaAnterior}`;
+}
+
+function preencherFiltrosPeriodoDetalhesUsuario(periodo) {
+    const inicio = document.getElementById("filtro-modal-usuario-data-inicio");
+    const fim = document.getElementById("filtro-modal-usuario-data-fim");
+
+    if (inicio) {
+        inicio.value = periodo.inicio || "";
+    }
+
+    if (fim) {
+        fim.value = periodo.fim ? obterDataAnterior(periodo.fim) : "";
+    }
+}
+
+function obterEventosUsuarioLocal(usuario, periodo) {
+    return graficosState.eventosImpressoesUsuarios
+        .filter((evento) => {
+            const data = normalizarDataIso(evento.data_hora);
+            return (
+                evento.usuario === usuario
+                && (!periodo.inicio || data >= periodo.inicio)
+                && (!periodo.fim || data < periodo.fim)
+            );
+        })
+        .sort((a, b) => String(b.data_hora || "").localeCompare(String(a.data_hora || "")));
+}
+
+async function buscarEventosUsuario(usuario, periodo) {
+    const parametros = new URLSearchParams({
+        usuario,
+        limite: "1000",
+    });
+
+    if (periodo.inicio) {
+        parametros.set("data_inicio", periodo.inicio);
+    }
+
+    if (periodo.fim) {
+        parametros.set("data_fim", periodo.fim);
+    }
+
+    const payload = await buscarJson(`/api/impressoes-usuarios?${parametros.toString()}`);
+    return normalizarListaApi(payload)
+        .map(normalizarImpressaoUsuario)
+        .filter((evento) => evento.usuario && evento.data_hora);
+}
+
+function fecharPopupDetalhesUsuario() {
+    const modal = document.getElementById("modal-detalhes-usuario");
+
+    if (modal) {
+        modal.hidden = true;
+    }
+}
+
+function atualizarPopupDetalhesUsuario(usuario, periodo, eventos) {
+    const titulo = document.getElementById("titulo-modal-detalhes-usuario");
+    const resumo = document.getElementById("resumo-modal-detalhes-usuario");
+    const tbody = document.getElementById("tabela-modal-detalhes-usuario");
+
+    if (!titulo || !resumo || !tbody) {
+        return;
+    }
+
+    const computadores = new Set(eventos.map((evento) => evento.computador).filter(Boolean));
+    const impressoras = new Set(eventos.map((evento) => evento.impressora).filter(Boolean));
+    const totalPaginas = eventos.reduce((total, evento) => total + Number(evento.paginas || 0), 0);
+
+    titulo.innerText = usuario;
+    resumo.innerText = `Periodo: ${formatarPeriodoDetalhesUsuario(periodo)} | Jobs: ${formatarNumero(eventos.length)} | Paginas: ${formatarNumero(totalPaginas)} | Computadores: ${formatarNumero(computadores.size)} | Impressoras: ${formatarNumero(impressoras.size)}`;
+
+    if (!eventos.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="chart-loading">Nenhum job encontrado para este usuario no periodo selecionado.</td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = eventos.map((evento) => `
+        <tr>
+            <td>${escaparHtml(evento.data_hora)}</td>
+            <td>${escaparHtml(evento.computador || "-")}</td>
+            <td>${escaparHtml(evento.impressora || "-")}</td>
+            <td>${escaparHtml(evento.documento || "-")}</td>
+            <td>${formatarNumero(evento.paginas)}</td>
+            <td>${escaparHtml(evento.job_id || "-")}</td>
+        </tr>
+    `).join("");
+}
+
+async function carregarDetalhesUsuario(usuario, periodo) {
+    const resumo = document.getElementById("resumo-modal-detalhes-usuario");
+    const tbody = document.getElementById("tabela-modal-detalhes-usuario");
+
+    if (!resumo || !tbody || !usuario) {
+        return;
+    }
+
+    graficosState.periodoDetalhesUsuario = periodo;
+    resumo.innerText = `Periodo: ${formatarPeriodoDetalhesUsuario(periodo)} | Carregando jobs...`;
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="6" class="chart-loading">Carregando jobs...</td>
+        </tr>
+    `;
+
+    try {
+        const eventos = await buscarEventosUsuario(usuario, periodo);
+        atualizarPopupDetalhesUsuario(usuario, periodo, eventos);
+    } catch (error) {
+        console.error("Erro ao carregar jobs do usuario:", error);
+        atualizarPopupDetalhesUsuario(usuario, periodo, obterEventosUsuarioLocal(usuario, periodo));
+    }
+}
+
+async function abrirPopupDetalhesUsuario(usuario) {
+    const modal = document.getElementById("modal-detalhes-usuario");
+    const titulo = document.getElementById("titulo-modal-detalhes-usuario");
+    const resumo = document.getElementById("resumo-modal-detalhes-usuario");
+    const tbody = document.getElementById("tabela-modal-detalhes-usuario");
+    const periodo = obterPeriodoDetalhesUsuarioPadrao();
+
+    if (!modal || !titulo || !resumo || !tbody || !usuario) {
+        return;
+    }
+
+    graficosState.usuarioDetalhesAtual = usuario;
+    preencherFiltrosPeriodoDetalhesUsuario(periodo);
+    modal.hidden = false;
+    titulo.innerText = usuario;
+    await carregarDetalhesUsuario(usuario, periodo);
+}
+
+function aplicarPeriodoDetalhesUsuario() {
+    if (!graficosState.usuarioDetalhesAtual) {
+        return;
+    }
+
+    const periodo = obterPeriodoDetalhesUsuarioSelecionado();
+    carregarDetalhesUsuario(graficosState.usuarioDetalhesAtual, periodo);
+}
+
+function inicializarPopupDetalhesUsuario() {
+    document.querySelectorAll("[data-user-jobs-close]").forEach((elemento) => {
+        if (elemento.dataset.bound) {
+            return;
+        }
+
+        elemento.addEventListener("click", fecharPopupDetalhesUsuario);
+        elemento.dataset.bound = "true";
+    });
+
+    const botaoAplicar = document.getElementById("botao-modal-usuario-aplicar");
+
+    if (botaoAplicar && !botaoAplicar.dataset.bound) {
+        botaoAplicar.addEventListener("click", aplicarPeriodoDetalhesUsuario);
+        botaoAplicar.dataset.bound = "true";
+    }
+
+    if (!document.body.dataset.userJobsEscapeBound) {
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") {
+                fecharPopupDetalhesUsuario();
+            }
+        });
+        document.body.dataset.userJobsEscapeBound = "true";
+    }
+}
+
 function renderizarGraficosPorPeriodo() {
     const dataSelecionada = document.getElementById("filtro-data-dia")?.value || "";
     const mesSelecionado = document.getElementById("filtro-data-mes")?.value || "";
@@ -1289,7 +1563,10 @@ function renderizarGraficoUsuarios() {
         topUsuarios,
         "total_paginas",
         "#14b8a6",
-        { mostrarToken: false },
+        {
+            mostrarToken: false,
+            onItemClick: (item) => abrirPopupDetalhesUsuario(item.usuario || item.nome),
+        },
     );
 }
 
@@ -1484,6 +1761,7 @@ async function carregarGraficos() {
     atualizarResumo(impressoras);
     inicializarAbasGraficos();
     inicializarControleLinhaHistorico();
+    inicializarPopupDetalhesUsuario();
     inicializarFiltrosPeriodo();
     alternarAbaGraficos(graficosState.abaAtiva);
     renderizarGraficosPorPeriodo();

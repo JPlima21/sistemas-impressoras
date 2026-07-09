@@ -194,6 +194,50 @@
         </article>
     </section>
 
+    <div id="modal-detalhes-usuario" class="user-jobs-modal" hidden>
+        <div class="user-jobs-modal-backdrop" data-user-jobs-close></div>
+        <section class="user-jobs-dialog" role="dialog" aria-modal="true" aria-labelledby="titulo-modal-detalhes-usuario">
+            <div class="user-jobs-header">
+                <div>
+                    <span class="user-jobs-eyebrow">Detalhes do usuario</span>
+                    <h2 id="titulo-modal-detalhes-usuario">Jobs de impressao</h2>
+                    <p id="resumo-modal-detalhes-usuario" class="user-jobs-summary">Carregando jobs...</p>
+                </div>
+                <button type="button" class="user-jobs-close" aria-label="Fechar detalhes" data-user-jobs-close>&times;</button>
+            </div>
+            <div class="user-jobs-filters">
+                <label class="user-jobs-period-control" for="filtro-modal-usuario-data-inicio">
+                    <span>Data inicial</span>
+                    <input id="filtro-modal-usuario-data-inicio" type="date">
+                </label>
+                <label class="user-jobs-period-control" for="filtro-modal-usuario-data-fim">
+                    <span>Data final</span>
+                    <input id="filtro-modal-usuario-data-fim" type="date">
+                </label>
+                <button type="button" id="botao-modal-usuario-aplicar" class="user-jobs-apply">Aplicar periodo</button>
+            </div>
+            <div class="user-jobs-table-wrapper">
+                <table class="user-jobs-table">
+                    <thead>
+                        <tr>
+                            <th>Data/hora</th>
+                            <th>Computador</th>
+                            <th>Impressora</th>
+                            <th>Documento</th>
+                            <th>Paginas</th>
+                            <th>Job ID</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-modal-detalhes-usuario">
+                        <tr>
+                            <td colspan="6" class="chart-loading">Carregando jobs...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
 </div>
 
 <script src="/static/js/graficos.js"></script>
