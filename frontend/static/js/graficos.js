@@ -1,0 +1,1319 @@
+const SVG_NS = "http://www.w3.org/2000/svg";
+const chartColorPalette = [
+    "#38bdf8",
+    "#34d399",
+    "#f59e0b",
+    "#f87171",
+    "#a78bfa",
+    "#fb7185",
+    "#22c55e",
+    "#60a5fa",
+    "#f97316",
+    "#14b8a6",
+];
+const graficosState = {
+    impressoras: [],
+    historico: [],
+    historicoDiario: new Map(),
+    historicoDiarioCompleto: new Map(),
+    historicoMensal: new Map(),
+    impressoesUsuarios: [],
+    impressoesUsuariosPorMes: new Map(),
+    datasSalvamentoPorData: new Map(),
+    rotulosImpressoras: new Map(),
+    abaAtiva: "painel-grafico-dia",
+};
+let resizeTimeoutId = null;
+
+function formatarNumero(valor) {
+    return new Intl.NumberFormat("pt-BR").format(Number(valor || 0));
+}
+
+function formatarMoeda(valor) {
+    return new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+    }).format(Number(valor || 0));
+}
+
+function obterRotuloToken(tokenTipo) {
+    if (tokenTipo === "colorida") {
+        return "Colorida";
+    }
+
+    if (tokenTipo === "nenhum") {
+        return "Sem token";
+    }
+
+    return "Preto e branco";
+}
+
+function obterSiglaToken(tokenTipo) {
+    if (tokenTipo === "colorida") {
+        return "Color";
+    }
+
+    if (tokenTipo === "nenhum") {
+        return "Sem token";
+    }
+
+    return "P_B";
+}
+
+function obterValorPadraoToken(tokenTipo) {
+    if (tokenTipo === "colorida") {
+        return 0.5;
+    }
+
+    if (tokenTipo === "nenhum") {
+        return 0;
+    }
+
+    return 0.04;
+}
+
+function obterDataAtualIso() {
+    const agora = new Date();
+    const ano = String(agora.getFullYear());
+    const mes = String(agora.getMonth() + 1).padStart(2, "0");
+    const dia = String(agora.getDate()).padStart(2, "0");
+    return `${ano}-${mes}-${dia}`;
+}
+
+function obterMesAtualIso() {
+    return obterDataAtualIso().slice(0, 7);
+}
+
+function formatarDataIso(valor) {
+    const [ano, mes, dia] = String(valor || "").split("-");
+
+    if (!ano || !mes || !dia) {
+        return String(valor || "");
+    }
+
+    return `${dia}/${mes}/${ano}`;
+}
+
+function formatarDataFiltroHistorico(valor) {
+    const dataFormatada = formatarDataIso(valor);
+    const datasSalvamento = graficosState.datasSalvamentoPorData.get(valor) || [];
+
+    if (!datasSalvamento.length || datasSalvamento.includes(valor)) {
+        return dataFormatada;
+    }
+
+    return `${dataFormatada} (salvo em ${datasSalvamento.map(formatarDataIso).join(", ")})`;
+}
+
+function formatarMesIso(valor) {
+    const [ano, mes] = String(valor || "").split("-");
+
+    if (!ano || !mes) {
+        return String(valor || "");
+    }
+
+    return new Intl.DateTimeFormat("pt-BR", {
+        month: "long",
+        year: "numeric",
+    }).format(new Date(Number(ano), Number(mes) - 1, 1));
+}
+
+
+function normalizarDataIso(valor) {
+    if (!valor) {
+        return "";
+    }
+
+    const texto = String(valor).trim();
+    const isoMatch = texto.match(/(\d{4})-(\d{2})-(\d{2})/);
+
+    if (isoMatch) {
+        return `${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}`;
+    }
+
+    const brMatch = texto.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+
+    if (brMatch) {
+        return `${brMatch[3]}-${brMatch[2]}-${brMatch[1]}`;
+    }
+
+    const data = new Date(texto);
+
+    if (!Number.isNaN(data.getTime())) {
+        const ano = String(data.getUTCFullYear());
+        const mes = String(data.getUTCMonth() + 1).padStart(2, "0");
+        const dia = String(data.getUTCDate()).padStart(2, "0");
+        return `${ano}-${mes}-${dia}`;
+    }
+
+    return "";
+}
+
+function escaparHtml(valor) {
+    return String(valor ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+}
+
+function normalizarTextoBusca(valor) {
+    return String(valor || "")
+        .trim()
+        .toLocaleLowerCase("pt-BR")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "");
+}
+
+function normalizarListaApi(payload, chaveObjeto = "") {
+    if (Array.isArray(payload)) {
+        return payload;
+    }
+
+    if (payload && Array.isArray(payload[chaveObjeto])) {
+        return payload[chaveObjeto];
+    }
+
+    if (payload && chaveObjeto && payload[chaveObjeto] && typeof payload[chaveObjeto] === "object") {
+        return normalizarListaApi(payload[chaveObjeto]);
+    }
+
+    if (payload && typeof payload === "object") {
+        return Object.entries(payload).map(([id, dados]) => ({
+            id,
+            ...(dados && typeof dados === "object" ? dados : {}),
+        }));
+    }
+
+    return [];
+}
+
+function normalizarImpressora(item) {
+    const id = obterIdentificadorImpressora(item);
+    const nome = obterRotuloImpressora(item) || id || "Impressora";
+
+    return {
+        ...item,
+        id,
+        nome,
+        online: Boolean(item?.online),
+        total_impressoes: Number(item?.total_impressoes || 0),
+        impressoes_dia: Number(item?.impressoes_dia || 0),
+        impressoes_mes: Number(item?.impressoes_mes || 0),
+        token_tipo: item?.token_tipo || "pb",
+        token_valor: Number(item?.token_valor ?? obterValorPadraoToken(item?.token_tipo)),
+    };
+}
+
+function normalizarHistorico(registros) {
+    return registros
+        .map((registro) => ({
+            ...registro,
+            impressora: String(registro?.impressora || registro?.id || "").trim(),
+            impressora_nome: obterRotuloImpressora(registro),
+            data: normalizarDataIso(registro?.data),
+            data_salvamento: normalizarDataIso(registro?.data_salvamento || registro?.timestamp_salvo),
+            impressoes_total_dia: Number(
+                registro?.impressoes_total_dia || registro?.impressoes_total || 0,
+            ),
+            motivo: registro?.motivo || "",
+            timestamp_salvo: registro?.timestamp_salvo || "",
+        }))
+        .filter((registro) => registro.impressora && registro.data);
+}
+
+function normalizarResumoUsuario(registro) {
+    return {
+        usuario: String(registro?.usuario || "").trim(),
+        nome: String(registro?.usuario || "").trim(),
+        total_paginas: Number(registro?.total_paginas || 0),
+        total_trabalhos: Number(registro?.total_trabalhos || 0),
+        primeira_impressao: registro?.primeira_impressao || "",
+        ultima_impressao: registro?.ultima_impressao || "",
+    };
+}
+
+function normalizarImpressaoUsuario(registro) {
+    return {
+        usuario: String(registro?.usuario || "").trim(),
+        data_hora: registro?.data_hora || "",
+        paginas: Number(registro?.paginas || 0),
+    };
+}
+
+async function buscarJson(url) {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+        throw new Error(`${url} retornou HTTP ${response.status}`);
+    }
+
+    return response.json();
+}
+
+async function buscarJsonComFallback(urls) {
+    const erros = [];
+
+    for (const url of urls) {
+        try {
+            return await buscarJson(url);
+        } catch (error) {
+            erros.push(error.message);
+        }
+    }
+
+    throw new Error(erros.join(" | "));
+}
+
+function atualizarResumo(impressoras) {
+    const total = impressoras.length;
+    const online = impressoras.filter((item) => item.online).length;
+    const offline = total - online;
+
+    const totalEl = document.getElementById("total-impressoras");
+    const onlineEl = document.getElementById("total-online");
+    const offlineEl = document.getElementById("total-offline");
+
+    if (totalEl) totalEl.innerText = total;
+    if (onlineEl) onlineEl.innerText = online;
+    if (offlineEl) offlineEl.innerText = offline;
+}
+
+function obterIdentificadorImpressora(item) {
+    return String(item?.id || item?.impressora || item?.nome || "").trim();
+}
+
+function obterRotuloImpressora(item) {
+    return String(item?.impressora_nome || item?.nome || item?.id || item?.impressora || "").trim();
+}
+
+function construirMapaRotulosImpressoras(impressoras, historico) {
+    const rotulos = new Map();
+
+    historico.forEach((registro) => {
+        const id = obterIdentificadorImpressora(registro);
+        const rotulo = obterRotuloImpressora(registro);
+
+        if (id) {
+            rotulos.set(id, rotulo || id);
+        }
+    });
+
+    impressoras.forEach((item) => {
+        const id = obterIdentificadorImpressora(item);
+        const rotulo = obterRotuloImpressora(item);
+
+        if (id) {
+            rotulos.set(id, rotulo || id);
+        }
+    });
+
+    return rotulos;
+}
+
+function ordenarItensGraficoPorValor(itens, campoValor) {
+    return [...itens].sort((a, b) => {
+        const diferencaValor = Number(b[campoValor] || 0) - Number(a[campoValor] || 0);
+
+        if (diferencaValor !== 0) {
+            return diferencaValor;
+        }
+
+        return String(a.nome || a.id).localeCompare(String(b.nome || b.id), "pt-BR");
+    });
+}
+
+function criarSvgBase(host, alturaMinima = 360, larguraMinima = 720) {
+    host.innerHTML = "";
+    const largura = Math.max(host.clientWidth || larguraMinima, larguraMinima);
+    const altura = alturaMinima;
+    const svg = document.createElementNS(SVG_NS, "svg");
+    svg.setAttribute("viewBox", `0 0 ${largura} ${altura}`);
+    svg.setAttribute("class", "svg-chart");
+    svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+    host.appendChild(svg);
+    return { svg, largura, altura };
+}
+
+function adicionarTextoSvg(svg, x, y, texto, className, anchor = "middle") {
+    const el = document.createElementNS(SVG_NS, "text");
+    el.setAttribute("x", x);
+    el.setAttribute("y", y);
+    el.setAttribute("text-anchor", anchor);
+    el.setAttribute("class", className);
+    el.textContent = texto;
+    svg.appendChild(el);
+    return el;
+}
+
+function adicionarTituloTooltip(elemento, texto) {
+    const title = document.createElementNS(SVG_NS, "title");
+    title.textContent = texto;
+    elemento.appendChild(title);
+}
+
+function desenharGradeY(svg, area, maxValue, steps = 5) {
+    const safeMax = Math.max(maxValue, 1);
+
+    for (let i = 0; i <= steps; i += 1) {
+        const ratio = i / steps;
+        const y = area.y + area.height - ratio * area.height;
+        const valor = Math.round(safeMax * ratio);
+
+        const linha = document.createElementNS(SVG_NS, "line");
+        linha.setAttribute("x1", area.x);
+        linha.setAttribute("x2", area.x + area.width);
+        linha.setAttribute("y1", y);
+        linha.setAttribute("y2", y);
+        linha.setAttribute("class", "svg-grid-line");
+        svg.appendChild(linha);
+
+        adicionarTextoSvg(svg, area.x - 10, y + 4, formatarNumero(valor), "svg-axis-label", "end");
+    }
+}
+
+function renderizarGraficoColunas(hostId, tituloVazio, itens, campoValor, corPrimaria, opcoes = {}) {
+    const host = document.getElementById(hostId);
+
+    if (!host) {
+        return;
+    }
+
+    if (!itens.length) {
+        host.innerHTML = `<p class="chart-loading">${tituloVazio}</p>`;
+        return;
+    }
+
+    const dados = ordenarItensGraficoPorValor(itens, campoValor);
+    const larguraMinima = Math.max(760, dados.length * 108);
+    const { svg, largura, altura } = criarSvgBase(host, 460, larguraMinima);
+    const area = { x: 72, y: 24, width: largura - 96, height: 250 };
+    const maxValue = Math.max(...dados.map((item) => Number(item[campoValor] || 0)), 0);
+    const passo = area.width / dados.length;
+    const larguraBarra = Math.min(42, passo * 0.55);
+
+    desenharGradeY(svg, area, maxValue, 5);
+
+    const eixoX = document.createElementNS(SVG_NS, "line");
+    eixoX.setAttribute("x1", area.x);
+    eixoX.setAttribute("x2", area.x + area.width);
+    eixoX.setAttribute("y1", area.y + area.height);
+    eixoX.setAttribute("y2", area.y + area.height);
+    eixoX.setAttribute("class", "svg-axis-line");
+    svg.appendChild(eixoX);
+
+    dados.forEach((item, index) => {
+        const valor = Number(item[campoValor] || 0);
+        const xCentro = area.x + passo * index + passo / 2;
+        const alturaBarra = maxValue > 0 ? (valor / maxValue) * area.height : 0;
+        const yBarra = area.y + area.height - alturaBarra;
+        const fill = item.online === false ? "#64748b" : corPrimaria;
+
+        const rect = document.createElementNS(SVG_NS, "rect");
+        rect.setAttribute("x", xCentro - larguraBarra / 2);
+        rect.setAttribute("y", yBarra);
+        rect.setAttribute("width", larguraBarra);
+        rect.setAttribute("height", Math.max(alturaBarra, 2));
+        rect.setAttribute("rx", "10");
+        rect.setAttribute("class", "svg-bar");
+        rect.setAttribute("fill", fill);
+        const valorToken = calcularValorToken(item, campoValor);
+        const tokenRotulo = obterRotuloToken(item.token_tipo);
+        const textoTooltip = opcoes.mostrarToken === false
+            ? `${item.nome}: ${formatarNumero(valor)} paginas | Trabalhos: ${formatarNumero(item.total_trabalhos || 0)}`
+            : `${item.nome}: ${formatarNumero(valor)} impressoes | ${tokenRotulo} ${formatarMoeda(item.token_valor)} | Total ${formatarMoeda(valorToken)}`;
+        adicionarTituloTooltip(rect, textoTooltip);
+        svg.appendChild(rect);
+
+        const yLabel = Math.max(yBarra - 22, 16);
+        adicionarTextoSvg(
+            svg,
+            xCentro,
+            yLabel,
+            formatarNumero(valor),
+            "svg-value-label",
+        );
+
+        if (opcoes.mostrarToken !== false) {
+            adicionarTextoSvg(
+                svg,
+                xCentro,
+                yLabel + 14,
+                formatarMoeda(valorToken),
+                "svg-token-label",
+            );
+        }
+
+        const labelX = adicionarTextoSvg(
+            svg,
+            xCentro,
+            area.y + area.height + 34,
+            item.nome,
+            "svg-axis-label svg-axis-label-x",
+            "end",
+        );
+        labelX.setAttribute("transform", `rotate(-45 ${xCentro} ${area.y + area.height + 34})`);
+        adicionarTituloTooltip(labelX, item.nome);
+    });
+}
+
+function construirMapaHistoricoDiario(registros) {
+    const mapa = new Map();
+
+    registros.forEach((registro) => {
+        const data = String(registro.data || "").slice(0, 10);
+        const impressora = String(registro.impressora || "").trim();
+        const valor = Number(registro.impressoes_total_dia || 0);
+
+        if (!data || !impressora) {
+            return;
+        }
+
+        if (!mapa.has(data)) {
+            mapa.set(data, new Map());
+        }
+
+        const valorAtual = mapa.get(data).get(impressora) ?? 0;
+        mapa.get(data).set(impressora, Math.max(valorAtual, valor));
+    });
+
+    return mapa;
+}
+
+function construirMapaDatasSalvamentoPorData(registros) {
+    const mapa = new Map();
+
+    registros.forEach((registro) => {
+        if (!registro.data || !registro.data_salvamento) {
+            return;
+        }
+
+        if (!mapa.has(registro.data)) {
+            mapa.set(registro.data, new Set());
+        }
+
+        mapa.get(registro.data).add(registro.data_salvamento);
+    });
+
+    return new Map(
+        [...mapa.entries()].map(([data, datasSalvamento]) => [
+            data,
+            [...datasSalvamento].sort().reverse(),
+        ]),
+    );
+}
+
+function construirMapaHistoricoDiarioCompleto(mapaHistoricoDiario, impressoras) {
+    const mapaCompleto = new Map(
+        [...mapaHistoricoDiario.entries()].map(([data, valoresDia]) => [data, new Map(valoresDia)]),
+    );
+    const dataAtual = obterDataAtualIso();
+    const valoresHoje = new Map(mapaCompleto.get(dataAtual) || []);
+    const todasImpressoras = new Set();
+
+    mapaCompleto.forEach((valoresDia) => {
+        [...valoresDia.keys()].forEach((impressoraId) => {
+            if (impressoraId) {
+                todasImpressoras.add(impressoraId);
+            }
+        });
+    });
+
+    impressoras.forEach((item) => {
+        const impressoraId = obterIdentificadorImpressora(item);
+
+        if (!impressoraId) {
+            return;
+        }
+
+        todasImpressoras.add(impressoraId);
+        valoresHoje.set(impressoraId, Number(item.impressoes_dia || 0));
+    });
+
+    if (valoresHoje.size) {
+        mapaCompleto.set(dataAtual, valoresHoje);
+    }
+
+    [...mapaCompleto.entries()].forEach(([data, valoresDia]) => {
+        const valoresNormalizados = new Map(valoresDia);
+
+        todasImpressoras.forEach((impressoraId) => {
+            if (!valoresNormalizados.has(impressoraId)) {
+                valoresNormalizados.set(impressoraId, 0);
+            }
+        });
+
+        mapaCompleto.set(data, valoresNormalizados);
+    });
+
+    return mapaCompleto;
+}
+
+function construirMapaHistoricoMensal(mapaHistoricoDiario) {
+    const mapaMensal = new Map();
+
+    [...mapaHistoricoDiario.entries()].forEach(([data, valoresDia]) => {
+        const mes = String(data).slice(0, 7);
+
+        if (!mes) {
+            return;
+        }
+
+        if (!mapaMensal.has(mes)) {
+            mapaMensal.set(mes, new Map());
+        }
+
+        [...valoresDia.entries()].forEach(([impressora, valor]) => {
+            const acumulado = mapaMensal.get(mes).get(impressora) ?? 0;
+            mapaMensal.get(mes).set(impressora, acumulado + Number(valor || 0));
+        });
+    });
+
+    return mapaMensal;
+}
+
+function construirResumoUsuariosPorMes(eventos) {
+    const mapaMensal = new Map();
+
+    eventos.forEach((evento) => {
+        const usuario = String(evento?.usuario || "").trim();
+        const data = normalizarDataIso(evento?.data_hora);
+        const mes = data.slice(0, 7);
+
+        if (!usuario || !mes) {
+            return;
+        }
+
+        if (!mapaMensal.has(mes)) {
+            mapaMensal.set(mes, new Map());
+        }
+
+        const resumoAtual = mapaMensal.get(mes).get(usuario) || {
+            usuario,
+            nome: usuario,
+            total_paginas: 0,
+            total_trabalhos: 0,
+        };
+
+        resumoAtual.total_paginas += Number(evento?.paginas || 0);
+        resumoAtual.total_trabalhos += 1;
+        mapaMensal.get(mes).set(usuario, resumoAtual);
+    });
+
+    return new Map(
+        [...mapaMensal.entries()].map(([mes, usuarios]) => [mes, [...usuarios.values()]]),
+    );
+}
+
+
+function agruparMapaPorData(mapaDatas) {
+    const mapaImpressoras = new Map();
+    const datasOrdenadas = [...mapaDatas.keys()].sort();
+
+    datasOrdenadas.forEach((data) => {
+        const valoresDia = mapaDatas.get(data) || new Map();
+
+        [...valoresDia.keys()].forEach((impressora) => {
+            if (!mapaImpressoras.has(impressora)) {
+                mapaImpressoras.set(
+                    impressora,
+                    chartColorPalette[mapaImpressoras.size % chartColorPalette.length],
+                );
+            }
+        });
+    });
+
+    const impressoras = [...mapaImpressoras.keys()].sort((a, b) => a.localeCompare(b, "pt-BR"));
+    return {
+        datas: datasOrdenadas,
+        impressoras: impressoras.map((id) => ({
+            id,
+            nome: graficosState.rotulosImpressoras.get(id) || id,
+            cor: mapaImpressoras.get(id),
+        })),
+        valores: mapaDatas,
+    };
+}
+
+function renderizarGraficoLinhaHistorico(hostId, mapaHistoricoDiario) {
+    const host = document.getElementById(hostId);
+
+    if (!host) {
+        return;
+    }
+
+    if (!mapaHistoricoDiario.size) {
+        host.innerHTML = `<p class="chart-loading">Nenhum registro historico disponivel.</p>`;
+        return;
+    }
+
+    const agrupado = agruparMapaPorData(mapaHistoricoDiario);
+
+    if (!agrupado.datas.length || !agrupado.impressoras.length) {
+        host.innerHTML = `<p class="chart-loading">Nenhum registro historico disponivel.</p>`;
+        return;
+    }
+
+    const { svg, largura, altura } = criarSvgBase(host, 420);
+    const area = { x: 72, y: 24, width: largura - 96, height: 240 };
+    const todosValores = [];
+
+    agrupado.datas.forEach((data) => {
+        agrupado.impressoras.forEach(({ id }) => {
+            todosValores.push(agrupado.valores.get(data).get(id) ?? 0);
+        });
+    });
+
+    const maxValue = Math.max(...todosValores, 0);
+    desenharGradeY(svg, area, maxValue, 5);
+
+    const eixoX = document.createElementNS(SVG_NS, "line");
+    eixoX.setAttribute("x1", area.x);
+    eixoX.setAttribute("x2", area.x + area.width);
+    eixoX.setAttribute("y1", area.y + area.height);
+    eixoX.setAttribute("y2", area.y + area.height);
+    eixoX.setAttribute("class", "svg-axis-line");
+    svg.appendChild(eixoX);
+
+    const passoX = agrupado.datas.length > 1 ? area.width / (agrupado.datas.length - 1) : 0;
+
+    agrupado.impressoras.forEach(({ id, nome, cor }) => {
+        const pontos = agrupado.datas.map((data, indice) => {
+            const valor = agrupado.valores.get(data).get(id) ?? 0;
+            const x = area.x + passoX * indice;
+            const y = area.y + area.height - ((maxValue > 0 ? valor / maxValue : 0) * area.height);
+            return { x, y, valor, data };
+        });
+
+        const path = document.createElementNS(SVG_NS, "path");
+        const d = pontos
+            .map((ponto, indice) => `${indice === 0 ? "M" : "L"} ${ponto.x} ${ponto.y}`)
+            .join(" ");
+        path.setAttribute("d", d);
+        path.setAttribute("fill", "none");
+        path.setAttribute("stroke", cor);
+        path.setAttribute("stroke-width", "3");
+        path.setAttribute("stroke-linejoin", "round");
+        path.setAttribute("stroke-linecap", "round");
+        svg.appendChild(path);
+        adicionarTituloTooltip(path, nome);
+
+        pontos.forEach((ponto) => {
+            const circle = document.createElementNS(SVG_NS, "circle");
+            circle.setAttribute("cx", ponto.x);
+            circle.setAttribute("cy", ponto.y);
+            circle.setAttribute("r", "4");
+            circle.setAttribute("fill", cor);
+            circle.setAttribute("class", "svg-point");
+            adicionarTituloTooltip(circle, `${nome} | ${ponto.data}: ${formatarNumero(ponto.valor)}`);
+            svg.appendChild(circle);
+        });
+    });
+
+    agrupado.datas.forEach((data, indice) => {
+        const x = area.x + passoX * indice;
+        adicionarTextoSvg(svg, x, area.y + area.height + 22, data, "svg-axis-label svg-axis-label-x");
+    });
+
+    const legendX = area.x;
+    const legendY = area.y + area.height + 48;
+    agrupado.impressoras.forEach(({ nome, cor }, indice) => {
+        const itemX = legendX + (indice % 3) * 220;
+        const itemY = legendY + Math.floor(indice / 3) * 24;
+
+        const marcador = document.createElementNS(SVG_NS, "rect");
+        marcador.setAttribute("x", itemX);
+        marcador.setAttribute("y", itemY - 10);
+        marcador.setAttribute("width", "14");
+        marcador.setAttribute("height", "14");
+        marcador.setAttribute("rx", "4");
+        marcador.setAttribute("fill", cor);
+        svg.appendChild(marcador);
+
+        adicionarTextoSvg(svg, itemX + 22, itemY + 1, nome, "svg-legend-label", "start");
+    });
+}
+
+function popularFiltroPeriodo(selectId, valores, formatador, valorPadrao) {
+    const select = document.getElementById(selectId);
+
+    if (!select) {
+        return "";
+    }
+
+    const valorAtual = select.value;
+    const valorSelecionado = valores.includes(valorAtual)
+        ? valorAtual
+        : (valores.includes(valorPadrao) ? valorPadrao : (valores[0] || ""));
+
+    select.innerHTML = valores
+        .map((valor) => `<option value="${escaparHtml(valor)}">${escaparHtml(formatador(valor))}</option>`)
+        .join("");
+
+    select.value = valorSelecionado;
+    select.disabled = valores.length <= 1;
+    return valorSelecionado;
+}
+
+function obterItensHistoricos(mapaValores, campoValor) {
+    return [...mapaValores.entries()].map(([id, valor]) => ({
+        id,
+        nome: graficosState.rotulosImpressoras.get(id) || id,
+        [campoValor]: Number(valor || 0),
+    })).map(enriquecerItemComToken);
+}
+
+function obterTokenImpressora(id) {
+    return graficosState.impressoras.find((item) => item.id === id) || {
+        token_tipo: "pb",
+        token_valor: 0.04,
+    };
+}
+
+function enriquecerItemComToken(item) {
+    const token = obterTokenImpressora(item.id || item.impressora);
+
+    return {
+        ...item,
+        token_tipo: item.token_tipo || token.token_tipo,
+        token_valor: Number(item.token_valor ?? token.token_valor ?? 0),
+    };
+}
+
+function calcularValorToken(item, campoValor) {
+    return Number(item[campoValor] || 0) * Number(item.token_valor || 0);
+}
+
+function calcularTotaisToken(itens, campoValor) {
+    return itens.reduce(
+        (totais, item) => ({
+            impressoes: totais.impressoes + Number(item[campoValor] || 0),
+            valor: totais.valor + calcularValorToken(item, campoValor),
+        }),
+        { impressoes: 0, valor: 0 },
+    );
+}
+
+function calcularTotaisUsuarios(itens) {
+    return itens.reduce(
+        (totais, item) => ({
+            paginas: totais.paginas + Number(item.total_paginas || 0),
+            trabalhos: totais.trabalhos + Number(item.total_trabalhos || 0),
+        }),
+        { paginas: 0, trabalhos: 0 },
+    );
+}
+
+function obterTopUsuariosPorImpressoes(itens, limite = 10) {
+    return [...itens]
+        .sort((a, b) => {
+            const diferencaPaginas = Number(b.total_paginas || 0) - Number(a.total_paginas || 0);
+
+            if (diferencaPaginas !== 0) {
+                return diferencaPaginas;
+            }
+
+            return String(a.usuario || a.nome).localeCompare(String(b.usuario || b.nome), "pt-BR");
+        })
+        .slice(0, limite);
+}
+
+function filtrarUsuariosPorPesquisa(itens, termoBusca) {
+    const termo = normalizarTextoBusca(termoBusca);
+
+    if (!termo) {
+        return itens;
+    }
+
+    return itens.filter((item) => normalizarTextoBusca(item.usuario || item.nome).includes(termo));
+}
+
+function obterItensRelatorioMensal(mesSelecionado) {
+    const mesAtual = obterMesAtualIso();
+
+    if (mesSelecionado === mesAtual) {
+        return graficosState.impressoras.map((item) => ({
+            id: item.id,
+            nome: item.nome,
+            impressoes_mes: Number(item.impressoes_mes || 0),
+            token_tipo: item.token_tipo,
+            token_valor: item.token_valor,
+        }));
+    }
+
+    return obterItensHistoricos(graficosState.historicoMensal.get(mesSelecionado) || new Map(), "impressoes_mes")
+        .map((item) => {
+            const token = obterTokenImpressora(item.id);
+            return {
+                ...item,
+                token_tipo: token.token_tipo,
+                token_valor: token.token_valor,
+            };
+        });
+}
+
+function obterRegistrosDoMes(mesSelecionado) {
+    const registrosFechados = graficosState.historico
+        .filter((registro) => String(registro.data || "").startsWith(mesSelecionado))
+        .map((registro) => ({
+            ...registro,
+            origem_relatorio: "fechado",
+        }));
+    const registrosDiaAtual = mesSelecionado === obterMesAtualIso()
+        ? graficosState.impressoras.map((item) => ({
+            data: obterDataAtualIso(),
+            impressora: item.id,
+            impressora_nome: item.nome,
+            impressoes_total_dia: Number(item.impressoes_dia || 0),
+            token_tipo: item.token_tipo,
+            token_valor: item.token_valor,
+            motivo: "dia_atual",
+            timestamp_salvo: "Em aberto",
+            origem_relatorio: "atual",
+        }))
+        : [];
+
+    return [...registrosFechados, ...registrosDiaAtual]
+        .sort((a, b) => {
+            const dataComparada = String(b.data || "").localeCompare(String(a.data || ""));
+            if (dataComparada !== 0) {
+                return dataComparada;
+            }
+
+            return String(obterRotuloImpressora(a) || a.impressora)
+                .localeCompare(String(obterRotuloImpressora(b) || b.impressora), "pt-BR");
+        });
+}
+
+function montarLinhasResumoMensal(itens) {
+    const itensOrdenados = [...itens].sort((a, b) => Number(b.impressoes_mes || 0) - Number(a.impressoes_mes || 0));
+
+    return itensOrdenados
+        .map((item) => `
+            <tr>
+                <td>${escaparHtml(item.nome || item.id)}</td>
+                <td>${escaparHtml(obterSiglaToken(item.token_tipo))}</td>
+                <td class="number">${formatarMoeda(item.token_valor)}</td>
+                <td class="number">${formatarNumero(item.impressoes_mes)}</td>
+                <td class="number">${formatarMoeda(Number(item.impressoes_mes || 0) * Number(item.token_valor || 0))}</td>
+            </tr>
+        `)
+        .join("");
+}
+function imprimirRelatorioMensal() {
+    const mesSelecionado = document.getElementById("filtro-data-mes")?.value || obterMesAtualIso();
+    const itens = obterItensRelatorioMensal(mesSelecionado);
+    const totalMes = itens.reduce((total, item) => total + Number(item.impressoes_mes || 0), 0);
+    const valorTotalMes = itens.reduce(
+        (total, item) => total + Number(item.impressoes_mes || 0) * Number(item.token_valor || 0),
+        0,
+    );
+    const emitidoEm = new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "short",
+        timeStyle: "short",
+    }).format(new Date());
+    const janela = window.open("", "_blank", "width=1024,height=768");
+
+    if (!janela) {
+        alert("Nao foi possivel abrir a janela de impressao.");
+        return;
+    }
+
+    janela.document.write(`
+        <!DOCTYPE html>
+        <html lang="pt-br">
+        <head>
+            <meta charset="UTF-8">
+            <title>Relatorio mensal de impressoes</title>
+            <style>
+                body {
+                    margin: 32px;
+                    color: #111827;
+                    font-family: Arial, sans-serif;
+                }
+                header {
+                    display: flex;
+                    justify-content: space-between;
+                    gap: 24px;
+                    border-bottom: 2px solid #111827;
+                    padding-bottom: 14px;
+                    margin-bottom: 22px;
+                }
+                h1 {
+                    margin: 0;
+                    font-size: 22px;
+                }
+                h2 {
+                    margin: 24px 0 10px;
+                    font-size: 16px;
+                }
+                .meta {
+                    text-align: right;
+                    font-size: 12px;
+                    color: #4b5563;
+                }
+                .total {
+                    margin: 16px 0;
+                    padding: 12px;
+                    border: 1px solid #d1d5db;
+                    background: #f9fafb;
+                    font-size: 15px;
+                    font-weight: 700;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 12px;
+                }
+                th,
+                td {
+                    border: 1px solid #d1d5db;
+                    padding: 7px 8px;
+                    text-align: left;
+                }
+                th {
+                    background: #e5e7eb;
+                }
+                .number {
+                    text-align: right;
+                }
+                .empty {
+                    text-align: center;
+                    color: #6b7280;
+                }
+                @media print {
+                    body {
+                        margin: 18mm;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <header>
+                <div>
+                    <h1>Relatorio mensal de impressoes</h1>
+                    <p>Periodo: ${escaparHtml(formatarMesIso(mesSelecionado))}</p>
+                </div>
+                <div class="meta">
+                    <p>Emitido em</p>
+                    <strong>${escaparHtml(emitidoEm)}</strong>
+                </div>
+            </header>
+
+            <h2>Resumo por impressora</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Impressora</th>
+                        <th>Token</th>
+                        <th>Valor unitario</th>
+                        <th>Impressoes no mes</th>
+                        <th>Valor total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${montarLinhasResumoMensal(itens)}
+                </tbody>
+            </table>
+
+            <div class="total">Total do mes: ${formatarNumero(totalMes)} impressoes | ${formatarMoeda(valorTotalMes)}</div>
+        </body>
+        </html>
+    `);
+    janela.document.close();
+    janela.focus();
+    janela.print();
+}
+
+function atualizarSubtitulo(hostId, texto) {
+    const el = document.getElementById(hostId);
+
+    if (el) {
+        el.innerText = texto;
+    }
+}
+
+function obterPainelGraficoAtivo() {
+    return document.getElementById(graficosState.abaAtiva);
+}
+
+function alternarAbaGraficos(tabId) {
+    graficosState.abaAtiva = tabId;
+
+    document.querySelectorAll(".chart-tab-button").forEach((botao) => {
+        const ativo = botao.dataset.tabTarget === tabId;
+        botao.classList.toggle("active", ativo);
+        botao.setAttribute("aria-selected", ativo ? "true" : "false");
+    });
+
+    document.querySelectorAll(".chart-tab-panel").forEach((painel) => {
+        const ativo = painel.id === tabId;
+        painel.classList.toggle("active", ativo);
+        painel.hidden = !ativo;
+    });
+}
+
+function inicializarAbasGraficos() {
+    const botoes = document.querySelectorAll(".chart-tab-button");
+
+    botoes.forEach((botao) => {
+        if (botao.dataset.bound) {
+            return;
+        }
+
+        botao.addEventListener("click", () => {
+            alternarAbaGraficos(botao.dataset.tabTarget);
+            renderizarGraficosPorPeriodo();
+        });
+        botao.dataset.bound = "true";
+    });
+}
+
+function renderizarGraficosPorPeriodo() {
+    const dataSelecionada = document.getElementById("filtro-data-dia")?.value || "";
+    const mesSelecionado = document.getElementById("filtro-data-mes")?.value || "";
+    const mesUsuariosSelecionado = document.getElementById("filtro-usuarios-mes")?.value || obterMesAtualIso();
+    const pesquisaUsuarios = document.getElementById("filtro-usuarios-pesquisa")?.value || "";
+    const dataAtual = obterDataAtualIso();
+    const mesAtual = obterMesAtualIso();
+    const valoresDia = graficosState.historicoDiarioCompleto.get(dataSelecionada) || new Map();
+    const valoresMes = mesSelecionado === mesAtual
+        ? null
+        : (graficosState.historicoMensal.get(mesSelecionado) || new Map());
+
+    const itensDia = dataSelecionada === dataAtual
+        ? graficosState.impressoras
+        : obterItensHistoricos(valoresDia, "impressoes_dia");
+    const itensMes = mesSelecionado === mesAtual
+        ? graficosState.impressoras
+        : obterItensHistoricos(valoresMes, "impressoes_mes");
+    const totaisDia = calcularTotaisToken(itensDia, "impressoes_dia");
+    const totaisMes = calcularTotaisToken(itensMes, "impressoes_mes");
+    const itensUsuarios = graficosState.impressoesUsuariosPorMes.get(mesUsuariosSelecionado)
+        || (mesUsuariosSelecionado === obterMesAtualIso() ? graficosState.impressoesUsuarios : []);
+    const usuariosFiltrados = filtrarUsuariosPorPesquisa(itensUsuarios, pesquisaUsuarios);
+    const topUsuarios = obterTopUsuariosPorImpressoes(usuariosFiltrados);
+    const totaisUsuarios = calcularTotaisUsuarios(topUsuarios);
+
+    atualizarSubtitulo(
+        "subtitulo-grafico-dia",
+        `Periodo: ${formatarDataIso(dataSelecionada)} | Total: ${formatarNumero(totaisDia.impressoes)} impressoes | Valor: ${formatarMoeda(totaisDia.valor)}`,
+    );
+    atualizarSubtitulo(
+        "subtitulo-grafico-mes",
+        `Periodo: ${formatarMesIso(mesSelecionado)} | Total: ${formatarNumero(totaisMes.impressoes)} impressoes | Valor: ${formatarMoeda(totaisMes.valor)}`,
+    );
+    atualizarSubtitulo(
+        "subtitulo-grafico-usuarios",
+        `${pesquisaUsuarios ? "Busca" : "Top 10"} | Periodo: ${formatarMesIso(mesUsuariosSelecionado)} | Total: ${formatarNumero(totaisUsuarios.paginas)} paginas | Trabalhos: ${formatarNumero(totaisUsuarios.trabalhos)}`,
+    );
+
+    if (graficosState.abaAtiva === "painel-grafico-dia") {
+        renderizarGraficoColunas(
+            "grafico-colunas-dia",
+            "Nenhum dado diario disponivel para o periodo selecionado.",
+            itensDia,
+            "impressoes_dia",
+            "#38bdf8",
+        );
+    }
+
+    if (graficosState.abaAtiva === "painel-grafico-mes") {
+        renderizarGraficoColunas(
+            "grafico-colunas-mes",
+            "Nenhum dado mensal disponivel para o periodo selecionado.",
+            itensMes,
+            "impressoes_mes",
+            "#34d399",
+        );
+    }
+
+    renderizarGraficoLinhaHistorico("grafico-linha-historico", graficosState.historicoDiarioCompleto);
+    renderizarGraficoUsuarios();
+}
+
+function renderizarGraficoUsuarios() {
+    const mesSelecionado = document.getElementById("filtro-usuarios-mes")?.value || obterMesAtualIso();
+    const pesquisaUsuarios = document.getElementById("filtro-usuarios-pesquisa")?.value || "";
+    const itens = graficosState.impressoesUsuariosPorMes.get(mesSelecionado)
+        || (mesSelecionado === obterMesAtualIso() ? graficosState.impressoesUsuarios : []);
+    const usuariosFiltrados = filtrarUsuariosPorPesquisa(itens, pesquisaUsuarios);
+    const topUsuarios = obterTopUsuariosPorImpressoes(usuariosFiltrados);
+
+    renderizarGraficoColunas(
+        "grafico-colunas-usuarios",
+        "Nenhuma impressao por usuario disponivel para o periodo selecionado.",
+        topUsuarios,
+        "total_paginas",
+        "#14b8a6",
+        { mostrarToken: false },
+    );
+}
+
+function inicializarFiltrosPeriodo() {
+    const datasDisponiveis = [...graficosState.historicoDiarioCompleto.keys()].sort().reverse();
+    const mesesDisponiveis = new Set([
+        obterMesAtualIso(),
+        ...[...graficosState.historicoMensal.keys()],
+    ]);
+    const mesesOrdenados = [...mesesDisponiveis].sort().reverse();
+
+    const mesesUsuariosDisponiveis = new Set([
+        obterMesAtualIso(),
+        ...[...graficosState.impressoesUsuariosPorMes.keys()],
+    ]);
+    const mesesUsuariosOrdenados = [...mesesUsuariosDisponiveis].sort().reverse();
+
+    popularFiltroPeriodo("filtro-data-dia", datasDisponiveis, formatarDataFiltroHistorico, obterDataAtualIso());
+    popularFiltroPeriodo("filtro-data-mes", mesesOrdenados, formatarMesIso, obterMesAtualIso());
+    popularFiltroPeriodo("filtro-usuarios-mes", mesesUsuariosOrdenados, formatarMesIso, obterMesAtualIso());
+
+    const filtroDia = document.getElementById("filtro-data-dia");
+    const filtroMes = document.getElementById("filtro-data-mes");
+    const filtroUsuariosMes = document.getElementById("filtro-usuarios-mes");
+    const filtroUsuariosPesquisa = document.getElementById("filtro-usuarios-pesquisa");
+
+    if (filtroDia && !filtroDia.dataset.bound) {
+        filtroDia.addEventListener("change", renderizarGraficosPorPeriodo);
+        filtroDia.dataset.bound = "true";
+    }
+
+    if (filtroMes && !filtroMes.dataset.bound) {
+        filtroMes.addEventListener("change", renderizarGraficosPorPeriodo);
+        filtroMes.dataset.bound = "true";
+    }
+
+    if (filtroUsuariosMes && !filtroUsuariosMes.dataset.bound) {
+        filtroUsuariosMes.addEventListener("change", renderizarGraficosPorPeriodo);
+        filtroUsuariosMes.dataset.bound = "true";
+    }
+
+    if (filtroUsuariosPesquisa && !filtroUsuariosPesquisa.dataset.bound) {
+        filtroUsuariosPesquisa.addEventListener("input", renderizarGraficosPorPeriodo);
+        filtroUsuariosPesquisa.dataset.bound = "true";
+    }
+
+    const botaoRelatorioMensal = document.getElementById("botao-relatorio-mensal");
+
+    if (botaoRelatorioMensal && !botaoRelatorioMensal.dataset.bound) {
+        botaoRelatorioMensal.addEventListener("click", imprimirRelatorioMensal);
+        botaoRelatorioMensal.dataset.bound = "true";
+    }
+}
+
+function preencherTabelaHistorico(registros) {
+    const tbody = document.getElementById("tabela-historico-body");
+
+    if (!tbody) {
+        return;
+    }
+
+    if (!registros.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="chart-loading">Nenhum registro historico disponivel.</td>
+            </tr>
+        `;
+        return;
+    }
+
+    const linhas = [...registros]
+        .sort((a, b) => String(b.timestamp_salvo || "").localeCompare(String(a.timestamp_salvo || "")))
+        .slice(0, 100)
+        .map((registro) => `
+            <tr>
+                <td>${escaparHtml(registro.data)}</td>
+                <td>${escaparHtml(obterRotuloImpressora(registro) || registro.impressora)}</td>
+                <td>${formatarNumero(registro.impressoes_total_dia)}</td>
+                <td>${escaparHtml(registro.motivo)}</td>
+                <td>${escaparHtml(registro.timestamp_salvo)}</td>
+            </tr>
+        `)
+        .join("");
+
+    tbody.innerHTML = linhas;
+}
+
+async function carregarGraficos() {
+    const resultadoImpressoras = await Promise.allSettled([
+        buscarJsonComFallback(["/api/powerbi/impressoras", "/api"]),
+        buscarJsonComFallback(["/api/powerbi/historico", "/api/historico"]),
+        buscarJsonComFallback(["/api/impressoes-usuarios?limite=1000", "/api/impressoes-usuarios/resumo", "/api/powerbi/impressoes-usuarios"]),
+    ]);
+    const [resImpressoras, resHistorico, resUsuarios] = resultadoImpressoras;
+    const payloadImpressoras = resImpressoras.status === "fulfilled" ? resImpressoras.value : [];
+    const payloadHistorico = resHistorico.status === "fulfilled" ? resHistorico.value : [];
+    const payloadUsuarios = resUsuarios.status === "fulfilled" ? resUsuarios.value : [];
+    const impressoras = normalizarListaApi(payloadImpressoras, "impressoras")
+        .map(normalizarImpressora)
+        .filter((item) => item.id);
+    const historico = normalizarHistorico(normalizarListaApi(payloadHistorico, "historico"));
+    const usuariosNormalizados = normalizarListaApi(payloadUsuarios);
+    const eventosUsuarios = usuariosNormalizados
+        .map(normalizarImpressaoUsuario)
+        .filter((item) => item.usuario && item.data_hora);
+    const resumoUsuariosFallback = usuariosNormalizados
+        .map(normalizarResumoUsuario)
+        .filter((item) => item.usuario);
+    const usuariosPorMes = construirResumoUsuariosPorMes(eventosUsuarios);
+    const impressoesUsuarios = usuariosPorMes.get(obterMesAtualIso()) || resumoUsuariosFallback;
+    const historicoDiario = construirMapaHistoricoDiario(historico);
+    const datasSalvamentoPorData = construirMapaDatasSalvamentoPorData(historico);
+    const rotulosImpressoras = construirMapaRotulosImpressoras(impressoras, historico);
+    const historicoDiarioCompleto = construirMapaHistoricoDiarioCompleto(
+        historicoDiario,
+        impressoras,
+    );
+
+    if (resImpressoras.status === "rejected") {
+        console.error("Erro ao carregar impressoras:", resImpressoras.reason);
+    }
+
+    if (resHistorico.status === "rejected") {
+        console.error("Erro ao carregar historico:", resHistorico.reason);
+    }
+
+    if (resUsuarios.status === "rejected") {
+        console.error("Erro ao carregar impressoes por usuario:", resUsuarios.reason);
+    }
+
+    graficosState.impressoras = impressoras;
+    graficosState.historico = historico;
+    graficosState.historicoDiario = historicoDiario;
+    graficosState.datasSalvamentoPorData = datasSalvamentoPorData;
+    graficosState.rotulosImpressoras = rotulosImpressoras;
+    graficosState.historicoDiarioCompleto = historicoDiarioCompleto;
+    graficosState.historicoMensal = construirMapaHistoricoMensal(historicoDiarioCompleto);
+    graficosState.impressoesUsuarios = impressoesUsuarios;
+    graficosState.impressoesUsuariosPorMes = usuariosPorMes;
+
+    atualizarResumo(impressoras);
+    inicializarAbasGraficos();
+    inicializarFiltrosPeriodo();
+    alternarAbaGraficos(graficosState.abaAtiva);
+    renderizarGraficosPorPeriodo();
+    preencherTabelaHistorico(historico);
+
+    if (resUsuarios.status === "rejected") {
+        const host = document.getElementById("grafico-colunas-usuarios");
+        if (host) {
+            host.innerHTML = `<p class="chart-loading">Nao foi possivel carregar as impressoes por usuario.</p>`;
+        }
+    }
+
+    if (resImpressoras.status === "rejected") {
+        ["grafico-colunas-dia", "grafico-colunas-mes"].forEach((id) => {
+            const host = document.getElementById(id);
+            if (host) {
+                host.innerHTML = `<p class="chart-loading">Nao foi possivel carregar as impressoras.</p>`;
+            }
+        });
+    }
+}
+
+window.addEventListener("resize", () => {
+    window.clearTimeout(resizeTimeoutId);
+    resizeTimeoutId = window.setTimeout(renderizarGraficosPorPeriodo, 120);
+});
+
+carregarGraficos();

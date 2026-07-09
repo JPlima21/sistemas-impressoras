@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Graficos de Impressao</title>
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/graficos.css">
+    <link rel="stylesheet" href="/static/css/tabelas.css">
+    <link rel="stylesheet" href="/static/css/responsive.css">
+</head>
+<body>
+
+<div class="dashboard">
+
+    <header>
+        <h1>Graficos de Impressao</h1>
+        <nav class="top-nav" aria-label="Navegacao principal">
+            <a href="./" class="top-nav-link">Dashboard</a>
+            <a href="graficos" class="top-nav-link active" aria-current="page">Graficos</a>
+            <a href="configurações" class="top-nav-link">Configuracoes</a>
+        </nav>
+    </header>
+
+    <section class="resumo-status">
+        <div class="card resumo-card resumo-total">
+            <span class="resumo-label">Total</span>
+            <strong class="resumo-valor" id="total-impressoras">0</strong>
+        </div>
+        <div class="card resumo-card resumo-online">
+            <span class="resumo-label">Online</span>
+            <strong class="resumo-valor" id="total-online">0</strong>
+        </div>
+        <div class="card resumo-card resumo-offline">
+            <span class="resumo-label">Offline</span>
+            <strong class="resumo-valor" id="total-offline">0</strong>
+        </div>
+    </section>
+
+    <section class="charts-page-layout">
+        <article class="card chart-view-card">
+            <div class="chart-tabs-header">
+                <div>
+                    <h2>Impressoes por Impressora</h2>
+                    <p class="chart-view-subtitle">Alterne entre as abas para comparar leituras diarias e mensais</p>
+                </div>
+                <div class="chart-tabs-actions">
+                    <button type="button" id="botao-relatorio-mensal" class="chart-report-button">
+                        Imprimir relatorio mensal
+                    </button>
+                    <div class="chart-tabs" role="tablist" aria-label="Visualizacoes de impressoes">
+                        <button
+                            type="button"
+                            class="chart-tab-button active"
+                            id="aba-grafico-dia"
+                            data-tab-target="painel-grafico-dia"
+                            role="tab"
+                            aria-selected="true"
+                            aria-controls="painel-grafico-dia"
+                        >
+                            Diarias
+                        </button>
+                        <button
+                            type="button"
+                            class="chart-tab-button"
+                            id="aba-grafico-mes"
+                            data-tab-target="painel-grafico-mes"
+                            role="tab"
+                            aria-selected="false"
+                            aria-controls="painel-grafico-mes"
+                        >
+                            Mensais
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                id="painel-grafico-dia"
+                class="chart-tab-panel active"
+                role="tabpanel"
+                aria-labelledby="aba-grafico-dia"
+            >
+                <div class="chart-view-header">
+                    <div>
+                        <h3>Impressoes Diarias por Impressora</h3>
+                        <p id="subtitulo-grafico-dia" class="chart-view-subtitle">Periodo atual | eixo X: impressoras | eixo Y: impressoes_dia</p>
+                    </div>
+                    <label class="chart-period-control" for="filtro-data-dia">
+                        <span>Dia</span>
+                        <select id="filtro-data-dia" class="chart-period-select"></select>
+                    </label>
+                </div>
+                <div id="grafico-colunas-dia" class="svg-chart-host">
+                    <p class="chart-loading">Carregando grafico diario...</p>
+                </div>
+            </div>
+
+            <div
+                id="painel-grafico-mes"
+                class="chart-tab-panel"
+                role="tabpanel"
+                aria-labelledby="aba-grafico-mes"
+                hidden
+            >
+                <div class="chart-view-header">
+                    <div>
+                        <h3>Impressoes Mensais por Impressora</h3>
+                        <p id="subtitulo-grafico-mes" class="chart-view-subtitle">Periodo atual | eixo X: impressoras | eixo Y: impressoes_mes</p>
+                    </div>
+                    <label class="chart-period-control" for="filtro-data-mes">
+                        <span>Mes</span>
+                        <select id="filtro-data-mes" class="chart-period-select"></select>
+                    </label>
+                </div>
+                <div id="grafico-colunas-mes" class="svg-chart-host">
+                    <p class="chart-loading">Carregando grafico mensal...</p>
+                </div>
+            </div>
+        </article>
+
+        <article class="card chart-view-card">
+            <div class="chart-view-header">
+                <div>
+                    <h2>Historico por Dia</h2>
+                    <p class="chart-view-subtitle">Linha por impressora com base em impressoes_total_dia</p>
+                </div>
+            </div>
+            <div id="grafico-linha-historico" class="svg-chart-host">
+                <p class="chart-loading">Carregando historico...</p>
+            </div>
+        </article>
+
+        <article class="card chart-view-card">
+            <div class="chart-view-header">
+                <div>
+                    <h2>Impressoes por Usuario</h2>
+                    <p id="subtitulo-grafico-usuarios" class="chart-view-subtitle">Ranking mensal com base nos eventos do servidor de impressao</p>
+                </div>
+                <div class="chart-filter-actions">
+                    <label class="chart-period-control" for="filtro-usuarios-pesquisa">
+                        <span>Usuario</span>
+                        <input id="filtro-usuarios-pesquisa" class="chart-period-input" type="search" placeholder="Pesquisar usuario">
+                    </label>
+                    <label class="chart-period-control" for="filtro-usuarios-mes">
+                        <span>Mes</span>
+                        <select id="filtro-usuarios-mes" class="chart-period-select"></select>
+                    </label>
+                </div>
+            </div>
+            <div id="grafico-colunas-usuarios" class="svg-chart-host">
+                <p class="chart-loading">Carregando impressoes por usuario...</p>
+            </div>
+        </article>
+
+        <article class="card chart-view-card">
+            <div class="chart-view-header">
+                <div>
+                    <h2>Tabela de Auditoria</h2>
+                    <p class="chart-view-subtitle">Historico detalhado das leituras persistidas</p>
+                </div>
+            </div>
+            <div class="audit-table-wrapper">
+                <table class="audit-table">
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Impressora</th>
+                            <th>Impressoes do Dia</th>
+                            <th>Motivo</th>
+                            <th>Salvo em</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-historico-body">
+                        <tr>
+                            <td colspan="5" class="chart-loading">Carregando tabela...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </article>
+    </section>
+
+</div>
+
+<script src="/static/js/graficos.js"></script>
+
+</body>
+</html>

@@ -1,0 +1,255 @@
+.charts-page-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+
+.chart-view-card {
+    padding: 16px;
+    background:
+        linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(22, 31, 48, 0.98) 100%);
+}
+
+.chart-tabs-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 18px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.chart-tabs {
+    display: inline-flex;
+    gap: 8px;
+    padding: 6px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.74);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.chart-tabs-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.chart-tab-button {
+    border: none;
+    border-radius: 999px;
+    padding: 10px 18px;
+    background: transparent;
+    color: #cbd5e1;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chart-tab-button:hover {
+    background: rgba(51, 65, 85, 0.72);
+    color: #f8fafc;
+}
+
+.chart-tab-button.active {
+    background: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%);
+    color: #f8fafc;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.24);
+}
+
+
+.chart-tab-panel {
+    display: none;
+}
+
+.chart-tab-panel.active {
+    display: block;
+}
+
+.chart-tab-panel .chart-view-header {
+    margin-bottom: 12px;
+    align-items: end;
+}
+
+.chart-tab-panel h3 {
+    margin: 0;
+    font-size: 19px;
+    color: #f8fafc;
+    letter-spacing: 0.01em;
+}
+
+.chart-view-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.chart-view-header h2 {
+    margin: 0;
+    font-size: 22px;
+    color: #f8fafc;
+    letter-spacing: 0.01em;
+}
+
+.chart-filter-actions {
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.chart-period-control {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 190px;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.32);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    color: #cbd5e1;
+    font-size: 12px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.chart-report-button {
+    min-height: 42px;
+    border: 1px solid rgba(56, 189, 248, 0.32);
+    border-radius: 12px;
+    padding: 10px 14px;
+    background: rgba(14, 165, 233, 0.14);
+    color: #e0f2fe;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.chart-report-button:hover {
+    background: rgba(14, 165, 233, 0.22);
+    border-color: rgba(56, 189, 248, 0.52);
+}
+
+.chart-period-control span {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #94a3b8;
+}
+
+.chart-period-select,
+.chart-period-input {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.9);
+    color: #f8fafc;
+    padding: 10px 12px;
+    font-size: 13px;
+    outline: none;
+}
+
+.chart-period-input::placeholder {
+    color: #64748b;
+}
+
+.chart-period-select:focus,
+.chart-period-input:focus {
+    border-color: rgba(56, 189, 248, 0.7);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+}
+
+.chart-view-subtitle {
+    margin: 8px 0 0;
+    max-width: 760px;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #a9b8cc;
+}
+
+.svg-chart-host {
+    width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 6px 0 0;
+}
+
+.svg-chart {
+    width: 100%;
+    min-width: 760px;
+    height: auto;
+    display: block;
+    background:
+        radial-gradient(circle at top right, rgba(56, 189, 248, 0.1), transparent 30%),
+        radial-gradient(circle at top left, rgba(52, 211, 153, 0.06), transparent 28%),
+        linear-gradient(180deg, #162235 0%, #101827 100%);
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.svg-grid-line {
+    stroke: rgba(148, 163, 184, 0.16);
+    stroke-width: 1;
+    stroke-dasharray: 4 5;
+}
+
+.svg-axis-line {
+    stroke: rgba(148, 163, 184, 0.26);
+    stroke-width: 1;
+}
+
+.svg-axis-label {
+    fill: #98a8bc;
+    font-size: 12px;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.svg-axis-label-x {
+    fill: #d6deea;
+    font-size: 16px;
+    font-weight: 600;
+}
+
+.svg-value-label {
+    fill: #f8fafc;
+    font-size: 16px;
+    font-family: "Segoe UI", sans-serif;
+    font-weight: 600;
+    paint-order: stroke;
+    stroke: rgba(15, 23, 42, 0.58);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+}
+
+.svg-token-label {
+    fill: #a7f3d0;
+    font-size: 16px;
+    font-family: "Segoe UI", sans-serif;
+    font-weight: 700;
+    paint-order: stroke;
+    stroke: rgba(15, 23, 42, 0.68);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+}
+
+.svg-legend-label {
+    fill: #cbd5e1;
+    font-size: 12px;
+    font-family: "Segoe UI", sans-serif;
+}
+
+.svg-bar {
+    transition: opacity 0.2s ease;
+}
+
+.svg-bar:hover,
+.svg-point:hover {
+    opacity: 0.82;
+}

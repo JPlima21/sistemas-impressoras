@@ -1,0 +1,9 @@
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.git/
+.gitignore
+.env
+historico_impressoes.db
+historico_impressoes.db-*

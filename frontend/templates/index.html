@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Monitor de Impressora</title>
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+    <link rel="stylesheet" href="/static/css/responsive.css">
+</head>
+<body>
+
+<div class="dashboard">
+
+    <header>
+        <h1>Monitor de Impressora</h1>
+    </header>
+
+    <section class="dashboard-top-row">
+        <div class="dashboard-top-left">
+            <nav class="top-nav" aria-label="Navegacao principal">
+                <a href="./" class="top-nav-link active" aria-current="page">Dashboard</a>
+                <a href="graficos" class="top-nav-link">Graficos</a>
+                <a href="configurações" class="top-nav-link">Configuracoes</a>
+            </nav>
+
+            <div class="resumo-status">
+                <div class="card resumo-card resumo-total">
+                    <span class="resumo-label">Total</span>
+                    <strong class="resumo-valor" id="total-impressoras">0</strong>
+                </div>
+                <div class="card resumo-card resumo-online">
+                    <span class="resumo-label">Online</span>
+                    <strong class="resumo-valor" id="total-online">0</strong>
+                </div>
+                <div class="card resumo-card resumo-offline">
+                    <span class="resumo-label">Offline</span>
+                    <strong class="resumo-valor" id="total-offline">0</strong>
+                </div>
+            </div>
+        </div>
+
+        <aside class="card toner-alert-card" aria-labelledby="titulo-alertas-toner">
+            <div class="toner-alert-header">
+                <div>
+                    <span class="toner-alert-eyebrow">Alertas de toner</span>
+                    <h2 id="titulo-alertas-toner" class="sr-only">Alertas de toner</h2>
+                </div>
+                <strong class="toner-alert-count" id="total-alertas-toner">0</strong>
+            </div>
+            <div class="toner-alert-summary" id="resumo-alertas-toner">Aguardando leitura...</div>
+            <div class="toner-alert-list" id="lista-alertas-toner">
+                <p class="toner-alert-empty">Carregando niveis de toner...</p>
+            </div>
+        </aside>
+    </section>
+
+    <div class="content" id="content-container">
+        <p style="text-align: center; padding: 20px;">Carregando impressoras...</p>
+    </div>
+
+</div>
+
+<script src="/static/js/dashboard.js"></script>
+
+</body>
+</html>

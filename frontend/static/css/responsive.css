@@ -1,0 +1,68 @@
+@container (max-width: 480px) {
+    .printer-details-row {
+        grid-template-columns: 1fr;
+    }
+
+    .printer-info-stack {
+        grid-template-columns: 1fr;
+    }
+}
+
+@container (max-width: 340px) {
+    .recursos-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .recursos-indices {
+        grid-template-columns: 1fr;
+    }
+
+    .indice-card:last-child {
+        grid-column: auto;
+    }
+}
+
+@media (max-width: 1180px) {
+    .dashboard-top-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
+    }
+
+    .toner-alert-list {
+        max-height: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .content {
+        grid-template-columns: 1fr;
+    }
+
+    .printer-management-layout {
+        grid-template-columns: 1fr;
+    }
+
+    .chart-tabs-header,
+    .chart-view-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .chart-tabs {
+        width: 100%;
+        justify-content: stretch;
+    }
+
+    .chart-tab-button {
+        flex: 1 1 0;
+        text-align: center;
+    }
+
+    .chart-period-control {
+        width: 100%;
+    }
+
+    .toner-alert-list {
+        grid-template-columns: 1fr;
+    }
+}

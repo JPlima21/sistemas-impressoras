@@ -1,0 +1,20 @@
+services:
+  monitor-impressoras:
+    image: sistemas-impressoras
+    build: .
+    container_name: monitor-impressoras
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: "America/Fortaleza"
+      FLASK_DEBUG: "${FLASK_DEBUG}"
+      HISTORICO_FECHAMENTO_DIARIO: "${HISTORICO_FECHAMENTO_DIARIO:-23:59}"
+      CORS_ORIGINS: "${CORS_ORIGINS}"
+      API_USER: "${API_USER}"
+      API_PASSWORD: "${API_PASSWORD}"
+      MARIADB_HOST: "${MARIADB_HOST}"
+      MARIADB_PORT: "${MARIADB_PORT}"
+      MARIADB_USER: "${MARIADB_USER}"
+      MARIADB_PASSWORD: "${MARIADB_PASSWORD}"
+      MARIADB_DATABASE: "${MARIADB_DATABASE}"
+    restart: unless-stopped

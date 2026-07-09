@@ -1,0 +1,226 @@
+.printer-management-layout {
+    display: grid;
+    grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+    gap: 16px;
+}
+
+.management-card {
+    padding: 16px;
+    background:
+        linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(22, 31, 48, 0.98) 100%);
+}
+
+.management-card h2 {
+    margin: 0;
+    font-size: 22px;
+    color: #f8fafc;
+}
+
+.management-card h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #f8fafc;
+}
+
+.management-card p {
+    color: #a9b8cc;
+}
+
+.printer-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.form-grid {
+    display: grid;
+    gap: 12px;
+}
+
+.form-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-field label {
+    color: #d8e7f5;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.form-field input,
+.form-field select {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.9);
+    color: #f8fafc;
+    padding: 12px 14px;
+    font-size: 14px;
+    outline: none;
+}
+
+.form-field input:focus,
+.form-field select:focus {
+    border-color: rgba(56, 189, 248, 0.7);
+    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+}
+
+.form-help {
+    margin: 0;
+    font-size: 12px;
+    color: #94a3b8;
+}
+
+.form-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.button-primary {
+    border: none;
+    border-radius: 999px;
+    padding: 12px 18px;
+    background: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%);
+    color: #f8fafc;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.24);
+}
+
+.button-primary:hover {
+    filter: brightness(1.06);
+}
+
+.button-primary:disabled {
+    opacity: 0.65;
+    cursor: wait;
+}
+
+.form-feedback {
+    min-height: 20px;
+    margin: 0;
+    font-size: 13px;
+}
+
+.form-feedback.is-error {
+    color: #fca5a5;
+}
+
+.form-feedback.is-success {
+    color: #86efac;
+}
+
+.inventory-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+.inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 12px;
+}
+
+.inventory-card {
+    padding: 14px;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.36);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+.inventory-card h3 {
+    margin-bottom: 10px;
+}
+
+.inventory-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.inventory-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: rgba(51, 65, 85, 0.72);
+    color: #d8e7f5;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.inventory-badge.online {
+    background: rgba(34, 197, 94, 0.18);
+    color: #bbf7d0;
+}
+
+.inventory-badge.offline {
+    background: rgba(239, 68, 68, 0.18);
+    color: #fecaca;
+}
+
+.inventory-details {
+    display: grid;
+    gap: 8px;
+}
+
+.inventory-details p {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.28);
+    color: #d8e7f5;
+    font-size: 13px;
+}
+
+.inventory-details strong {
+    color: #94a3b8;
+}
+
+.inventory-actions {
+    margin-top: 12px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+.button-danger {
+    border: 1px solid rgba(248, 113, 113, 0.24);
+    border-radius: 999px;
+    padding: 10px 14px;
+    background: rgba(127, 29, 29, 0.32);
+    color: #fecaca;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.button-danger:hover {
+    background: rgba(153, 27, 27, 0.44);
+    border-color: rgba(248, 113, 113, 0.38);
+    color: #fee2e2;
+}
+
+.inventory-empty {
+    margin: 0;
+    padding: 18px;
+    border-radius: 14px;
+    text-align: center;
+    color: #94a3b8;
+    background: rgba(15, 23, 42, 0.28);
+    border: 1px dashed rgba(148, 163, 184, 0.2);
+}
+

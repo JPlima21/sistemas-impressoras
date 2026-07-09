@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Configuracoes</title>
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/impressoras.css">
+    <link rel="stylesheet" href="/static/css/responsive.css">
+</head>
+<body>
+
+<div class="dashboard">
+
+    <header>
+        <h1>Configuracoes</h1>
+        <nav class="top-nav" aria-label="Navegacao principal">
+            <a href="./" class="top-nav-link">Dashboard</a>
+            <a href="graficos" class="top-nav-link">Graficos</a>
+            <a href="configurações" class="top-nav-link active" aria-current="page">Configuracoes</a>
+        </nav>
+    </header>
+
+    <section class="resumo-status">
+        <div class="card resumo-card resumo-total">
+            <span class="resumo-label">Total</span>
+            <strong class="resumo-valor" id="total-impressoras">0</strong>
+        </div>
+        <div class="card resumo-card resumo-online">
+            <span class="resumo-label">Online</span>
+            <strong class="resumo-valor" id="total-online">0</strong>
+        </div>
+        <div class="card resumo-card resumo-offline">
+            <span class="resumo-label">Offline</span>
+            <strong class="resumo-valor" id="total-offline">0</strong>
+        </div>
+    </section>
+
+    <section class="printer-management-layout">
+        <article class="card management-card">
+            <div class="chart-view-header">
+                <div>
+                    <h2>Nova Impressora</h2>
+                    <p class="chart-view-subtitle">
+                        Cadastre uma nova impressora sem editar o codigo. O nome real sera obtido via SNMP quando houver resposta do equipamento.
+                    </p>
+                </div>
+            </div>
+
+            <form id="form-impressora" class="printer-form">
+                <div class="form-grid">
+                    <div class="form-field">
+                        <label for="printer-ip">IP</label>
+                        <input id="printer-ip" name="ip" type="text" placeholder="192.168.0.50" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="printer-community">Community SNMP</label>
+                        <input id="printer-community" name="community" type="password" autocomplete="off" required>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="printer-token">Token de impressao</label>
+                        <select id="printer-token" name="token_tipo" required>
+                            <option value="nenhum">Sem token vinculado</option>
+                            <option value="pb" selected>Preto e branco - R$ 0,04</option>
+                            <option value="colorida">Colorida - R$ 0,50</option>
+                        </select>
+                    </div>
+
+                    <div class="form-field">
+                        <label for="printer-id">Identificador interno</label>
+                        <input id="printer-id" name="id" type="text" placeholder="Opcional. Ex.: impressora17">
+                        <p class="form-help">Se deixar em branco, o sistema gera automaticamente o proximo identificador.</p>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="button-primary" id="submit-impressora">Adicionar impressora</button>
+                </div>
+
+                <p id="form-feedback" class="form-feedback" aria-live="polite"></p>
+            </form>
+        </article>
+
+        <article class="card management-card">
+            <div class="inventory-header">
+                <div>
+                    <h2>Configuracoes Cadastradas</h2>
+                    <p class="chart-view-subtitle">Lista atual usada pelo monitoramento.</p>
+                </div>
+            </div>
+
+            <div id="lista-impressoras" class="inventory-grid">
+                <p class="inventory-empty">Carregando configuracoes...</p>
+            </div>
+        </article>
+    </section>
+
+</div>
+
+<script src="/static/js/impressoras.js"></script>
+
+</body>
+</html>
