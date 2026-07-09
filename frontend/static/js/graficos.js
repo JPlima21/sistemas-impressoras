@@ -18,7 +18,9 @@ const graficosState = {
     historicoDiarioCompleto: new Map(),
     historicoMensal: new Map(),
     impressoesUsuarios: [],
+    eventosImpressoesUsuarios: [],
     impressoesUsuariosPorMes: new Map(),
+    periodoLinhaHistorico: "dia",
     datasSalvamentoPorData: new Map(),
     rotulosImpressoras: new Map(),
     abaAtiva: "painel-grafico-dia",
@@ -236,6 +238,7 @@ function normalizarResumoUsuario(registro) {
 function normalizarImpressaoUsuario(registro) {
     return {
         usuario: String(registro?.usuario || "").trim(),
+        impressora: String(registro?.impressora || "").trim(),
         data_hora: registro?.data_hora || "",
         paginas: Number(registro?.paginas || 0),
     };
@@ -605,6 +608,116 @@ function construirResumoUsuariosPorMes(eventos) {
     );
 }
 
+function obterHoraEvento(dataHora) {
+    const match = String(dataHora || "").match(/\d{4}-\d{2}-\d{2}[ T](\d{2})/);
+
+    return match ? `${match[1]}:00` : "";
+}
+
+function obterDiasMes(mesReferencia) {
+    const [ano, mes] = String(mesReferencia || "").split("-").map(Number);
+
+    if (!ano || !mes) {
+        return [];
+    }
+
+    const totalDias = new Date(ano, mes, 0).getDate();
+    return Array.from({ length: totalDias }, (_, indice) => (
+        `${mesReferencia}-${String(indice + 1).padStart(2, "0")}`
+    ));
+}
+
+function obterDatasEventosImpressoes(eventos) {
+    return [...new Set(
+        eventos
+            .map((evento) => normalizarDataIso(evento.data_hora))
+            .filter(Boolean),
+    )].sort().reverse();
+}
+
+function obterMesesEventosImpressoes(eventos) {
+    return [...new Set(
+        eventos
+            .map((evento) => normalizarDataIso(evento.data_hora).slice(0, 7))
+            .filter(Boolean),
+    )].sort().reverse();
+}
+
+function construirLinhaEventosDia(eventos, dataSelecionada) {
+    const horas = Array.from({ length: 24 }, (_, indice) => `${String(indice).padStart(2, "0")}:00`);
+    const incrementosPorHora = new Map(horas.map((hora) => [hora, new Map()]));
+    const impressoras = new Set();
+
+    eventos.forEach((evento) => {
+        const data = normalizarDataIso(evento.data_hora);
+        const hora = obterHoraEvento(evento.data_hora);
+        const impressora = String(evento.impressora || "").trim();
+
+        if (data !== dataSelecionada || !hora || !impressora || !incrementosPorHora.has(hora)) {
+            return;
+        }
+
+        impressoras.add(impressora);
+        const valorAtual = incrementosPorHora.get(hora).get(impressora) || 0;
+        incrementosPorHora.get(hora).set(impressora, valorAtual + Number(evento.paginas || 0));
+    });
+
+    if (!impressoras.size) {
+        return new Map();
+    }
+
+    const acumulado = new Map();
+    return new Map(horas.map((hora) => {
+        const valoresHora = new Map();
+        const incrementos = incrementosPorHora.get(hora) || new Map();
+
+        impressoras.forEach((impressora) => {
+            const total = (acumulado.get(impressora) || 0) + Number(incrementos.get(impressora) || 0);
+            acumulado.set(impressora, total);
+            valoresHora.set(impressora, total);
+        });
+
+        return [hora, valoresHora];
+    }));
+}
+
+function construirLinhaEventosMes(eventos, mesSelecionado) {
+    const dias = obterDiasMes(mesSelecionado);
+    const incrementosPorDia = new Map(dias.map((dia) => [dia, new Map()]));
+    const impressoras = new Set();
+
+    eventos.forEach((evento) => {
+        const data = normalizarDataIso(evento.data_hora);
+        const impressora = String(evento.impressora || "").trim();
+
+        if (!data.startsWith(mesSelecionado) || !impressora || !incrementosPorDia.has(data)) {
+            return;
+        }
+
+        impressoras.add(impressora);
+        const valorAtual = incrementosPorDia.get(data).get(impressora) || 0;
+        incrementosPorDia.get(data).set(impressora, valorAtual + Number(evento.paginas || 0));
+    });
+
+    if (!impressoras.size) {
+        return new Map();
+    }
+
+    const acumulado = new Map();
+    return new Map(dias.map((dia) => {
+        const valoresDia = new Map();
+        const incrementos = incrementosPorDia.get(dia) || new Map();
+
+        impressoras.forEach((impressora) => {
+            const total = (acumulado.get(impressora) || 0) + Number(incrementos.get(impressora) || 0);
+            acumulado.set(impressora, total);
+            valoresDia.set(impressora, total);
+        });
+
+        return [dia, valoresDia];
+    }));
+}
+
 
 function agruparMapaPorData(mapaDatas) {
     const mapaImpressoras = new Map();
@@ -635,22 +748,22 @@ function agruparMapaPorData(mapaDatas) {
     };
 }
 
-function renderizarGraficoLinhaHistorico(hostId, mapaHistoricoDiario) {
+function renderizarGraficoLinhaHistorico(hostId, mapaHistorico, opcoes = {}) {
     const host = document.getElementById(hostId);
 
     if (!host) {
         return;
     }
 
-    if (!mapaHistoricoDiario.size) {
-        host.innerHTML = `<p class="chart-loading">Nenhum registro historico disponivel.</p>`;
+    if (!mapaHistorico.size) {
+        host.innerHTML = `<p class="chart-loading">${opcoes.tituloVazio || "Nenhum registro historico disponivel."}</p>`;
         return;
     }
 
-    const agrupado = agruparMapaPorData(mapaHistoricoDiario);
+    const agrupado = agruparMapaPorData(mapaHistorico);
 
     if (!agrupado.datas.length || !agrupado.impressoras.length) {
-        host.innerHTML = `<p class="chart-loading">Nenhum registro historico disponivel.</p>`;
+        host.innerHTML = `<p class="chart-loading">${opcoes.tituloVazio || "Nenhum registro historico disponivel."}</p>`;
         return;
     }
 
@@ -676,11 +789,13 @@ function renderizarGraficoLinhaHistorico(hostId, mapaHistoricoDiario) {
     svg.appendChild(eixoX);
 
     const passoX = agrupado.datas.length > 1 ? area.width / (agrupado.datas.length - 1) : 0;
+    const formatarRotulo = opcoes.formatarRotulo || ((valor) => valor);
+    const formatarTooltip = opcoes.formatarTooltip || formatarRotulo;
 
     agrupado.impressoras.forEach(({ id, nome, cor }) => {
         const pontos = agrupado.datas.map((data, indice) => {
             const valor = agrupado.valores.get(data).get(id) ?? 0;
-            const x = area.x + passoX * indice;
+            const x = agrupado.datas.length > 1 ? area.x + passoX * indice : area.x + area.width / 2;
             const y = area.y + area.height - ((maxValue > 0 ? valor / maxValue : 0) * area.height);
             return { x, y, valor, data };
         });
@@ -705,14 +820,14 @@ function renderizarGraficoLinhaHistorico(hostId, mapaHistoricoDiario) {
             circle.setAttribute("r", "4");
             circle.setAttribute("fill", cor);
             circle.setAttribute("class", "svg-point");
-            adicionarTituloTooltip(circle, `${nome} | ${ponto.data}: ${formatarNumero(ponto.valor)}`);
+            adicionarTituloTooltip(circle, `${nome} | ${formatarTooltip(ponto.data)}: ${formatarNumero(ponto.valor)}`);
             svg.appendChild(circle);
         });
     });
 
     agrupado.datas.forEach((data, indice) => {
-        const x = area.x + passoX * indice;
-        adicionarTextoSvg(svg, x, area.y + area.height + 22, data, "svg-axis-label svg-axis-label-x");
+        const x = agrupado.datas.length > 1 ? area.x + passoX * indice : area.x + area.width / 2;
+        adicionarTextoSvg(svg, x, area.y + area.height + 22, formatarRotulo(data), "svg-axis-label svg-axis-label-x");
     });
 
     const legendX = area.x;
@@ -1074,6 +1189,8 @@ function renderizarGraficosPorPeriodo() {
     const mesSelecionado = document.getElementById("filtro-data-mes")?.value || "";
     const mesUsuariosSelecionado = document.getElementById("filtro-usuarios-mes")?.value || obterMesAtualIso();
     const pesquisaUsuarios = document.getElementById("filtro-usuarios-pesquisa")?.value || "";
+    const dataLinhaSelecionada = document.getElementById("filtro-linha-dia")?.value || obterDataAtualIso();
+    const mesLinhaSelecionado = document.getElementById("filtro-linha-mes")?.value || obterMesAtualIso();
     const dataAtual = obterDataAtualIso();
     const mesAtual = obterMesAtualIso();
     const valoresDia = graficosState.historicoDiarioCompleto.get(dataSelecionada) || new Map();
@@ -1128,7 +1245,33 @@ function renderizarGraficosPorPeriodo() {
         );
     }
 
-    renderizarGraficoLinhaHistorico("grafico-linha-historico", graficosState.historicoDiarioCompleto);
+    const linhaModo = graficosState.periodoLinhaHistorico;
+    const mapaLinha = linhaModo === "mes"
+        ? construirLinhaEventosMes(graficosState.eventosImpressoesUsuarios, mesLinhaSelecionado)
+        : construirLinhaEventosDia(graficosState.eventosImpressoesUsuarios, dataLinhaSelecionada);
+    const tituloLinha = document.getElementById("titulo-grafico-linha");
+
+    if (tituloLinha) {
+        tituloLinha.innerText = linhaModo === "mes" ? "Historico por Mes" : "Historico por Dia";
+    }
+
+    atualizarSubtitulo(
+        "subtitulo-grafico-linha",
+        linhaModo === "mes"
+            ? `Trajetoria acumulada durante ${formatarMesIso(mesLinhaSelecionado)} por impressora`
+            : `Evolucao acumulada em ${formatarDataIso(dataLinhaSelecionada)} por impressora`,
+    );
+    renderizarGraficoLinhaHistorico(
+        "grafico-linha-historico",
+        mapaLinha,
+        {
+            tituloVazio: linhaModo === "mes"
+                ? "Nenhum evento de impressao disponivel para o mes selecionado."
+                : "Nenhum evento de impressao disponivel para o dia selecionado.",
+            formatarRotulo: linhaModo === "mes" ? ((valor) => String(valor).slice(8, 10)) : ((valor) => valor),
+            formatarTooltip: linhaModo === "mes" ? formatarDataIso : ((valor) => valor),
+        },
+    );
     renderizarGraficoUsuarios();
 }
 
@@ -1150,6 +1293,40 @@ function renderizarGraficoUsuarios() {
     );
 }
 
+function alternarModoLinhaHistorico(periodo) {
+    graficosState.periodoLinhaHistorico = periodo === "mes" ? "mes" : "dia";
+
+    document.querySelectorAll("[data-line-period]").forEach((botao) => {
+        botao.classList.toggle("active", botao.dataset.linePeriod === graficosState.periodoLinhaHistorico);
+    });
+
+    const controleDia = document.querySelector('label[for="filtro-linha-dia"]');
+    const controleMes = document.querySelector('label[for="filtro-linha-mes"]');
+
+    if (controleDia) {
+        controleDia.hidden = graficosState.periodoLinhaHistorico !== "dia";
+    }
+    if (controleMes) {
+        controleMes.hidden = graficosState.periodoLinhaHistorico !== "mes";
+    }
+}
+
+function inicializarControleLinhaHistorico() {
+    document.querySelectorAll("[data-line-period]").forEach((botao) => {
+        if (botao.dataset.bound) {
+            return;
+        }
+
+        botao.addEventListener("click", () => {
+            alternarModoLinhaHistorico(botao.dataset.linePeriod);
+            renderizarGraficosPorPeriodo();
+        });
+        botao.dataset.bound = "true";
+    });
+
+    alternarModoLinhaHistorico(graficosState.periodoLinhaHistorico);
+}
+
 function inicializarFiltrosPeriodo() {
     const datasDisponiveis = [...graficosState.historicoDiarioCompleto.keys()].sort().reverse();
     const mesesDisponiveis = new Set([
@@ -1163,15 +1340,21 @@ function inicializarFiltrosPeriodo() {
         ...[...graficosState.impressoesUsuariosPorMes.keys()],
     ]);
     const mesesUsuariosOrdenados = [...mesesUsuariosDisponiveis].sort().reverse();
+    const datasLinhaDisponiveis = obterDatasEventosImpressoes(graficosState.eventosImpressoesUsuarios);
+    const mesesLinhaDisponiveis = obterMesesEventosImpressoes(graficosState.eventosImpressoesUsuarios);
 
     popularFiltroPeriodo("filtro-data-dia", datasDisponiveis, formatarDataFiltroHistorico, obterDataAtualIso());
     popularFiltroPeriodo("filtro-data-mes", mesesOrdenados, formatarMesIso, obterMesAtualIso());
     popularFiltroPeriodo("filtro-usuarios-mes", mesesUsuariosOrdenados, formatarMesIso, obterMesAtualIso());
+    popularFiltroPeriodo("filtro-linha-dia", datasLinhaDisponiveis, formatarDataIso, obterDataAtualIso());
+    popularFiltroPeriodo("filtro-linha-mes", mesesLinhaDisponiveis, formatarMesIso, obterMesAtualIso());
 
     const filtroDia = document.getElementById("filtro-data-dia");
     const filtroMes = document.getElementById("filtro-data-mes");
     const filtroUsuariosMes = document.getElementById("filtro-usuarios-mes");
     const filtroUsuariosPesquisa = document.getElementById("filtro-usuarios-pesquisa");
+    const filtroLinhaDia = document.getElementById("filtro-linha-dia");
+    const filtroLinhaMes = document.getElementById("filtro-linha-mes");
 
     if (filtroDia && !filtroDia.dataset.bound) {
         filtroDia.addEventListener("change", renderizarGraficosPorPeriodo);
@@ -1191,6 +1374,16 @@ function inicializarFiltrosPeriodo() {
     if (filtroUsuariosPesquisa && !filtroUsuariosPesquisa.dataset.bound) {
         filtroUsuariosPesquisa.addEventListener("input", renderizarGraficosPorPeriodo);
         filtroUsuariosPesquisa.dataset.bound = "true";
+    }
+
+    if (filtroLinhaDia && !filtroLinhaDia.dataset.bound) {
+        filtroLinhaDia.addEventListener("change", renderizarGraficosPorPeriodo);
+        filtroLinhaDia.dataset.bound = "true";
+    }
+
+    if (filtroLinhaMes && !filtroLinhaMes.dataset.bound) {
+        filtroLinhaMes.addEventListener("change", renderizarGraficosPorPeriodo);
+        filtroLinhaMes.dataset.bound = "true";
     }
 
     const botaoRelatorioMensal = document.getElementById("botao-relatorio-mensal");
@@ -1285,10 +1478,12 @@ async function carregarGraficos() {
     graficosState.historicoDiarioCompleto = historicoDiarioCompleto;
     graficosState.historicoMensal = construirMapaHistoricoMensal(historicoDiarioCompleto);
     graficosState.impressoesUsuarios = impressoesUsuarios;
+    graficosState.eventosImpressoesUsuarios = eventosUsuarios;
     graficosState.impressoesUsuariosPorMes = usuariosPorMes;
 
     atualizarResumo(impressoras);
     inicializarAbasGraficos();
+    inicializarControleLinhaHistorico();
     inicializarFiltrosPeriodo();
     alternarAbaGraficos(graficosState.abaAtiva);
     renderizarGraficosPorPeriodo();

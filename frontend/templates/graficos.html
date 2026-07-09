@@ -121,8 +121,22 @@
         <article class="card chart-view-card">
             <div class="chart-view-header">
                 <div>
-                    <h2>Historico por Dia</h2>
-                    <p class="chart-view-subtitle">Linha por impressora com base em impressoes_total_dia</p>
+                    <h2 id="titulo-grafico-linha">Historico por Dia</h2>
+                    <p id="subtitulo-grafico-linha" class="chart-view-subtitle">Evolucao acumulada por impressora ate o final do dia</p>
+                </div>
+                <div class="chart-filter-actions">
+                    <div class="chart-line-mode" role="group" aria-label="Periodo do historico">
+                        <button type="button" class="chart-line-mode-button active" data-line-period="dia">Dia</button>
+                        <button type="button" class="chart-line-mode-button" data-line-period="mes">Mes</button>
+                    </div>
+                    <label class="chart-period-control" for="filtro-linha-dia">
+                        <span>Dia</span>
+                        <select id="filtro-linha-dia" class="chart-period-select"></select>
+                    </label>
+                    <label class="chart-period-control" for="filtro-linha-mes" hidden>
+                        <span>Mes</span>
+                        <select id="filtro-linha-mes" class="chart-period-select"></select>
+                    </label>
                 </div>
             </div>
             <div id="grafico-linha-historico" class="svg-chart-host">

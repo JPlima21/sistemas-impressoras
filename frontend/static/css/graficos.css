@@ -105,6 +105,38 @@
     flex-wrap: wrap;
 }
 
+.chart-line-mode {
+    display: inline-flex;
+    gap: 6px;
+    padding: 6px;
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.74);
+    border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.chart-line-mode-button {
+    min-width: 68px;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 12px;
+    background: transparent;
+    color: #cbd5e1;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.chart-line-mode-button:hover {
+    background: rgba(51, 65, 85, 0.72);
+    color: #f8fafc;
+}
+
+.chart-line-mode-button.active {
+    background: rgba(20, 184, 166, 0.24);
+    color: #ccfbf1;
+}
+
 .chart-period-control {
     display: flex;
     flex-direction: column;
