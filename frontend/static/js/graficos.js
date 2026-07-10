@@ -21,6 +21,8 @@ const graficosState = {
     eventosImpressoesUsuarios: [],
     impressoesUsuariosPorMes: new Map(),
     usuarioDetalhesAtual: "",
+    impressoraDetalhesAtual: null,
+    periodoDetalhesImpressora: { inicio: "", fim: "" },
     periodoDetalhesUsuario: { inicio: "", fim: "" },
     periodoLinhaHistorico: "dia",
     datasSalvamentoPorData: new Map(),
@@ -1458,6 +1460,126 @@ function inicializarPopupDetalhesUsuario() {
     }
 }
 
+function obterPeriodoDetalhesImpressoraPadrao() {
+    if (graficosState.abaAtiva === "painel-grafico-dia") {
+        const data = document.getElementById("filtro-data-dia")?.value || obterDataAtualIso();
+        return { inicio: data, fim: obterFimDataExclusivo(data) };
+    }
+
+    const mes = document.getElementById("filtro-data-mes")?.value || obterMesAtualIso();
+    return { inicio: `${mes}-01`, fim: obterFimMesExclusivo(mes) };
+}
+
+function preencherFiltrosPeriodoDetalhesImpressora(periodo) {
+    const inicio = document.getElementById("filtro-modal-impressora-data-inicio");
+    const fim = document.getElementById("filtro-modal-impressora-data-fim");
+    if (inicio) inicio.value = periodo.inicio || "";
+    if (fim) fim.value = periodo.fim ? obterDataAnterior(periodo.fim) : "";
+}
+
+function obterPeriodoDetalhesImpressoraSelecionado() {
+    const inicio = document.getElementById("filtro-modal-impressora-data-inicio")?.value || "";
+    const fim = document.getElementById("filtro-modal-impressora-data-fim")?.value || "";
+    return { inicio, fim: obterFimDataExclusivo(fim) };
+}
+
+function fecharPopupUsuariosImpressora() {
+    const modal = document.getElementById("modal-usuarios-impressora");
+    if (modal) modal.hidden = true;
+}
+
+function atualizarPopupUsuariosImpressora(impressora, periodo, usuarios, dadosImpressora = {}) {
+    const titulo = document.getElementById("titulo-modal-usuarios-impressora");
+    const resumo = document.getElementById("resumo-modal-usuarios-impressora");
+    const tbody = document.getElementById("tabela-modal-usuarios-impressora");
+    if (!titulo || !resumo || !tbody) return;
+
+    const totalPaginas = usuarios.reduce((total, item) => total + Number(item.total_paginas || 0), 0);
+    const totalTrabalhos = usuarios.reduce((total, item) => total + Number(item.total_trabalhos || 0), 0);
+    titulo.innerText = impressora.nome || impressora.id;
+    resumo.innerText = `IP: ${dadosImpressora.ip || impressora.ip || "-"} | Periodo: ${formatarPeriodoDetalhesUsuario(periodo)} | Usuarios: ${formatarNumero(usuarios.length)} | Trabalhos: ${formatarNumero(totalTrabalhos)} | Paginas: ${formatarNumero(totalPaginas)}`;
+
+    if (!usuarios.length) {
+        tbody.innerHTML = `<tr><td colspan="5" class="chart-loading">Nenhum usuario imprimiu nesta impressora no periodo selecionado.</td></tr>`;
+        return;
+    }
+
+    tbody.innerHTML = usuarios.map((item) => `
+        <tr>
+            <td>${escaparHtml(item.usuario || "-")}</td>
+            <td>${formatarNumero(item.total_trabalhos)}</td>
+            <td>${formatarNumero(item.total_paginas)}</td>
+            <td>${escaparHtml(item.primeira_impressao || "-")}</td>
+            <td>${escaparHtml(item.ultima_impressao || "-")}</td>
+        </tr>
+    `).join("");
+}
+
+async function carregarUsuariosImpressora(impressora, periodo) {
+    const resumo = document.getElementById("resumo-modal-usuarios-impressora");
+    const tbody = document.getElementById("tabela-modal-usuarios-impressora");
+    if (!resumo || !tbody || !impressora?.id) return;
+
+    graficosState.periodoDetalhesImpressora = periodo;
+    resumo.innerText = `Periodo: ${formatarPeriodoDetalhesUsuario(periodo)} | Carregando usuarios...`;
+    tbody.innerHTML = `<tr><td colspan="5" class="chart-loading">Carregando usuarios...</td></tr>`;
+
+    const parametros = new URLSearchParams();
+    if (periodo.inicio) parametros.set("data_inicio", periodo.inicio);
+    if (periodo.fim) parametros.set("data_fim", periodo.fim);
+
+    try {
+        const payload = await buscarJson(`/api/impressoras/${encodeURIComponent(impressora.id)}/usuarios?${parametros.toString()}`);
+        const usuarios = normalizarListaApi(payload?.usuarios).map(normalizarResumoUsuario);
+        atualizarPopupUsuariosImpressora(impressora, periodo, usuarios, payload?.impressora || {});
+    } catch (error) {
+        console.error("Erro ao carregar usuarios da impressora:", error);
+        resumo.innerText = "Nao foi possivel carregar os usuarios desta impressora.";
+        tbody.innerHTML = `<tr><td colspan="5" class="chart-loading">Falha ao consultar os dados.</td></tr>`;
+    }
+}
+
+async function abrirPopupUsuariosImpressora(item) {
+    const impressora = graficosState.impressoras.find((registro) => registro.id === item.id) || item;
+    const modal = document.getElementById("modal-usuarios-impressora");
+    if (!modal || !impressora?.id) return;
+
+    const periodo = obterPeriodoDetalhesImpressoraPadrao();
+    graficosState.impressoraDetalhesAtual = impressora;
+    preencherFiltrosPeriodoDetalhesImpressora(periodo);
+    modal.hidden = false;
+    await carregarUsuariosImpressora(impressora, periodo);
+}
+
+function inicializarPopupUsuariosImpressora() {
+    document.querySelectorAll("[data-printer-users-close]").forEach((elemento) => {
+        if (!elemento.dataset.bound) {
+            elemento.addEventListener("click", fecharPopupUsuariosImpressora);
+            elemento.dataset.bound = "true";
+        }
+    });
+
+    const botao = document.getElementById("botao-modal-impressora-aplicar");
+    if (botao && !botao.dataset.bound) {
+        botao.addEventListener("click", () => {
+            if (graficosState.impressoraDetalhesAtual) {
+                carregarUsuariosImpressora(
+                    graficosState.impressoraDetalhesAtual,
+                    obterPeriodoDetalhesImpressoraSelecionado(),
+                );
+            }
+        });
+        botao.dataset.bound = "true";
+    }
+
+    if (!document.body.dataset.printerUsersEscapeBound) {
+        document.addEventListener("keydown", (event) => {
+            if (event.key === "Escape") fecharPopupUsuariosImpressora();
+        });
+        document.body.dataset.printerUsersEscapeBound = "true";
+    }
+}
+
 function renderizarGraficosPorPeriodo() {
     const dataSelecionada = document.getElementById("filtro-data-dia")?.value || "";
     const mesSelecionado = document.getElementById("filtro-data-mes")?.value || "";
@@ -1506,6 +1628,7 @@ function renderizarGraficosPorPeriodo() {
             itensDia,
             "impressoes_dia",
             "#38bdf8",
+            { onItemClick: abrirPopupUsuariosImpressora },
         );
     }
 
@@ -1516,6 +1639,7 @@ function renderizarGraficosPorPeriodo() {
             itensMes,
             "impressoes_mes",
             "#34d399",
+            { onItemClick: abrirPopupUsuariosImpressora },
         );
     }
 
@@ -1760,6 +1884,7 @@ async function carregarGraficos() {
 
     atualizarResumo(impressoras);
     inicializarAbasGraficos();
+    inicializarPopupUsuariosImpressora();
     inicializarControleLinhaHistorico();
     inicializarPopupDetalhesUsuario();
     inicializarFiltrosPeriodo();

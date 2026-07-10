@@ -194,6 +194,47 @@
         </article>
     </section>
 
+    <div id="modal-usuarios-impressora" class="user-jobs-modal" hidden>
+        <div class="user-jobs-modal-backdrop" data-printer-users-close></div>
+        <section class="user-jobs-dialog" role="dialog" aria-modal="true" aria-labelledby="titulo-modal-usuarios-impressora">
+            <div class="user-jobs-header">
+                <div>
+                    <span class="user-jobs-eyebrow">Usuarios da impressora</span>
+                    <h2 id="titulo-modal-usuarios-impressora">Impressoes por usuario</h2>
+                    <p id="resumo-modal-usuarios-impressora" class="user-jobs-summary">Carregando usuarios...</p>
+                </div>
+                <button type="button" class="user-jobs-close" aria-label="Fechar detalhes" data-printer-users-close>&times;</button>
+            </div>
+            <div class="user-jobs-filters">
+                <label class="user-jobs-period-control" for="filtro-modal-impressora-data-inicio">
+                    <span>Data inicial</span>
+                    <input id="filtro-modal-impressora-data-inicio" type="date">
+                </label>
+                <label class="user-jobs-period-control" for="filtro-modal-impressora-data-fim">
+                    <span>Data final</span>
+                    <input id="filtro-modal-impressora-data-fim" type="date">
+                </label>
+                <button type="button" id="botao-modal-impressora-aplicar" class="user-jobs-apply">Aplicar periodo</button>
+            </div>
+            <div class="user-jobs-table-wrapper">
+                <table class="user-jobs-table">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Trabalhos</th>
+                            <th>Paginas</th>
+                            <th>Primeira impressao</th>
+                            <th>Ultima impressao</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tabela-modal-usuarios-impressora">
+                        <tr><td colspan="5" class="chart-loading">Carregando usuarios...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </div>
+
     <div id="modal-detalhes-usuario" class="user-jobs-modal" hidden>
         <div class="user-jobs-modal-backdrop" data-user-jobs-close></div>
         <section class="user-jobs-dialog" role="dialog" aria-modal="true" aria-labelledby="titulo-modal-detalhes-usuario">

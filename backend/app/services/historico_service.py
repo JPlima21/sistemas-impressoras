@@ -789,6 +789,9 @@ def _montar_filtros_impressoes_usuarios(filtros):
     if filtros.get("impressora"):
         where.append("impressora = %s")
         parametros.append(filtros["impressora"])
+    if filtros.get("porta"):
+        where.append("UPPER(TRIM(porta)) = UPPER(%s)")
+        parametros.append(filtros["porta"])
     if filtros.get("data_inicio"):
         where.append("data_hora >= %s")
         parametros.append(filtros["data_inicio"])

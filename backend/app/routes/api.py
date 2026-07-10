@@ -131,6 +131,7 @@ def create_api_blueprint(monitor_service, printer_config_service):
         return {
             "usuario": request.args.get("usuario"),
             "impressora": request.args.get("impressora"),
+            "porta": request.args.get("porta"),
             "data_inicio": request.args.get("data_inicio"),
             "data_fim": request.args.get("data_fim"),
             "limite": request.args.get("limite"),
@@ -182,6 +183,37 @@ def create_api_blueprint(monitor_service, printer_config_service):
     def api_resumo_impressoes_usuarios():
         registros = resumir_impressoes_usuarios(None, obter_filtros_impressoes_usuarios())
         return jsonify([formatar_resumo_impressao_usuario(registro) for registro in registros])
+
+    # Cruza o IP cadastrado com a porta PAPERCUT_<IP> e agrupa as impressoes por usuario
+    @api_bp.route("/api/impressoras/<impressora_id>/usuarios")
+    def api_usuarios_por_impressora(impressora_id):
+        config = next(
+            (item for item in printer_config_service.list_configs() if item["id"] == impressora_id),
+            None,
+        )
+        if not config:
+            return jsonify({"erro": "Impressora nao encontrada."}), 404
+
+        filtros = {
+            "porta": "PAPERCUT_" + config["ip"],
+            "data_inicio": request.args.get("data_inicio"),
+            "data_fim": request.args.get("data_fim"),
+        }
+        registros = resumir_impressoes_usuarios(None, filtros)
+
+        return jsonify(
+            {
+                "impressora": {
+                    "id": config["id"],
+                    "ip": config["ip"],
+                    "porta": filtros["porta"],
+                },
+                "usuarios": [
+                    formatar_resumo_impressao_usuario(registro)
+                    for registro in registros
+                ],
+            }
+        )
 
     # Retorna informações internas para diagnosticar o estado do monitor e do histórico
     @api_bp.route("/api/debug/historico")
