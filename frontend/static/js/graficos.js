@@ -1706,9 +1706,9 @@ function preencherTabelaHistorico(registros) {
 
 async function carregarGraficos() {
     const resultadoImpressoras = await Promise.allSettled([
-        buscarJsonComFallback(["/api/powerbi/impressoras", "/api"]),
-        buscarJsonComFallback(["/api/powerbi/historico", "/api/historico"]),
-        buscarJsonComFallback(["/api/impressoes-usuarios?limite=1000", "/api/impressoes-usuarios/resumo", "/api/powerbi/impressoes-usuarios"]),
+        buscarJsonComFallback(["/api"]),
+        buscarJsonComFallback(["/api/historico"]),
+        buscarJsonComFallback(["/api/impressoes-usuarios?limite=1000", "/api/impressoes-usuarios/resumo"]),
     ]);
     const [resImpressoras, resHistorico, resUsuarios] = resultadoImpressoras;
     const payloadImpressoras = resImpressoras.status === "fulfilled" ? resImpressoras.value : [];

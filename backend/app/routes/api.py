@@ -21,17 +21,6 @@ from services.printer_config_service import TOKEN_VALORES
 def create_api_blueprint(monitor_service, printer_config_service):
     api_bp = Blueprint("api", __name__)
 
-    # Formata valores de data para o padrão YYYY-MM-DD usado nas respostas JSON
-    def formatar_data_api(valor):
-        if not valor:
-            return None
-
-        if hasattr(valor, "strftime"):
-            return valor.strftime("%Y-%m-%d")
-
-        texto = str(valor).strip()
-        return texto[:10] if len(texto) >= 10 else texto
-
     # Formata timestamps para texto legível antes de enviar para a API
     def formatar_timestamp_api(valor):
         if not valor:
@@ -39,23 +28,6 @@ def create_api_blueprint(monitor_service, printer_config_service):
 
         if hasattr(valor, "isoformat"):
             return valor.isoformat(sep=" ")
-
-        return str(valor)
-
-    # Converte valores de hora vindos do banco para string no formato HH:MM:SS
-    def formatar_hora_api(valor):
-        if not valor:
-            return None
-
-        if hasattr(valor, "total_seconds"):
-            total_segundos = int(valor.total_seconds())
-            horas = total_segundos // 3600
-            minutos = (total_segundos % 3600) // 60
-            segundos = total_segundos % 60
-            return f"{horas:02d}:{minutos:02d}:{segundos:02d}"
-
-        if hasattr(valor, "isoformat"):
-            return valor.isoformat()
 
         return str(valor)
 
@@ -273,58 +245,5 @@ def create_api_blueprint(monitor_service, printer_config_service):
                 "versao": versao,
             }
         )
-
-    # Retorna o resumo das impressoras em formato conveniente para gráficos e Power BI
-    @api_bp.route("/api/powerbi/impressoras")
-    def api_powerbi_impressoras():
-        configs_por_id = {
-            config["id"]: config
-            for config in printer_config_service.list_configs()
-        }
-        linhas = []
-
-        for resumo in monitor_service.get_impressoras_resumo():
-            config = configs_por_id.get(resumo["id"])
-            token_tipo = config["token_tipo"] if config else resumo.get("token_tipo", "pb")
-            linhas.append(
-                {
-                    **resumo,
-                    "token_tipo": token_tipo,
-                    "token_valor": TOKEN_VALORES.get(token_tipo, TOKEN_VALORES["pb"]),
-                }
-            )
-
-        return jsonify(linhas)
-
-    # Retorna o resumo de impressoes por usuario em formato conveniente para Power BI
-    @api_bp.route("/api/powerbi/impressoes-usuarios")
-    def api_powerbi_impressoes_usuarios():
-        registros = resumir_impressoes_usuarios(None, obter_filtros_impressoes_usuarios())
-        return jsonify([formatar_resumo_impressao_usuario(registro) for registro in registros])
-
-    # Endpoint específico para o Power BI, formatando os dados de histórico de forma mais amigável para análise
-    @api_bp.route("/api/powerbi/historico")
-    def api_powerbi_historico():
-        historico = monitor_service.get_historico()
-        nomes_impressoras = monitor_service.get_mapa_nomes_impressoras()
-        linhas = []
-
-        for chave, registro in historico.items():
-            impressora_id = registro.get("impressora")
-            linhas.append(
-                {
-                    "chave": chave,
-                    "impressora": impressora_id,
-                    "impressora_nome": nomes_impressoras.get(impressora_id, impressora_id),
-                    "data": formatar_data_api(registro.get("data")),
-                    "hora_inicio": formatar_hora_api(registro.get("hora_inicio")),
-                    "impressoes_total_dia": int(registro.get("impressoes_total_dia") or 0),
-                    "motivo": registro.get("motivo"),
-                    "data_salvamento": formatar_data_api(registro.get("timestamp_salvo")),
-                    "timestamp_salvo": formatar_timestamp_api(registro.get("timestamp_salvo")),
-                }
-            )
-
-        return jsonify(linhas)
 
     return api_bp
