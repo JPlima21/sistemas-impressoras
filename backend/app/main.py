@@ -112,6 +112,18 @@ def create_app():
         static_folder=str(FRONTEND_DIR / "static"),
         static_url_path="/static",
     )
+
+    version_file = PROJECT_ROOT / "VERSION"
+
+    try:
+        system_version = version_file.read_text(encoding="utf-8").strip()
+    except OSError:
+        system_version = "desconhecida"
+
+    @app.context_processor
+    def inject_system_version():
+        return {"system_version": system_version}
+
     _registrar_cors(app)
     armazenamento_mariadb = None
     inicializar_banco(armazenamento_mariadb)
@@ -125,6 +137,8 @@ def create_app():
         daily_close_time=HISTORICO_FECHAMENTO_DIARIO,
     )
     monitor_service.start()
+
+
 
     app.register_blueprint(create_api_blueprint(monitor_service, printer_config_service))
     app.register_blueprint(create_web_blueprint())

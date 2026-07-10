@@ -14,6 +14,7 @@ RUN pip install --no-cache-dir --upgrade pip && \
 
 COPY backend/app/ .
 COPY frontend/ /app/frontend/
+COPY VERSION /app/VERSION
 
 EXPOSE 8080
 

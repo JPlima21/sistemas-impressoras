@@ -31,6 +31,35 @@ def create_api_blueprint(monitor_service, printer_config_service):
 
         return str(valor)
 
+    # Formata datas do banco no padrao ISO usado pelo frontend
+    def formatar_data_api(valor):
+        if not valor:
+            return None
+
+        if hasattr(valor, "strftime"):
+            return valor.strftime("%Y-%m-%d")
+
+        return str(valor)[:10]
+
+    # Converte TIME do MariaDB, retornado pelo PyMySQL como timedelta, para HH:MM:SS
+    def formatar_hora_api(valor):
+        if valor is None:
+            return None
+
+        if hasattr(valor, "total_seconds"):
+            total_segundos = int(valor.total_seconds())
+            sinal = "-" if total_segundos < 0 else ""
+            total_segundos = abs(total_segundos)
+            horas = total_segundos // 3600
+            minutos = (total_segundos % 3600) // 60
+            segundos = total_segundos % 60
+            return f"{sinal}{horas:02d}:{minutos:02d}:{segundos:02d}"
+
+        if hasattr(valor, "isoformat"):
+            return valor.isoformat()
+
+        return str(valor)
+
     # Monta a lista de impressoras combinando cadastro salvo e resumo atual do monitor
     def montar_lista_impressoras():
         resumo_por_id = {
@@ -125,7 +154,18 @@ def create_api_blueprint(monitor_service, printer_config_service):
     # Retorna o histórico consolidado de impressões salvo pelo monitor
     @api_bp.route("/api/historico")
     def api_historico():
-        return jsonify(monitor_service.get_historico())
+        historico = monitor_service.get_historico()
+        historico_formatado = {
+            chave: {
+                **registro,
+                "data": formatar_data_api(registro.get("data")),
+                "hora_inicio": formatar_hora_api(registro.get("hora_inicio")),
+                "timestamp_salvo": formatar_timestamp_api(registro.get("timestamp_salvo")),
+            }
+            for chave, registro in historico.items()
+        }
+
+        return jsonify(historico_formatado)
 
     def obter_filtros_impressoes_usuarios():
         return {

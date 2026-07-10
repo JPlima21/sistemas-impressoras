@@ -2,6 +2,7 @@ venv/
 __pycache__/
 *.py[cod]
 *.pyo
+*.orig
 .env
 historico_impressoes.db
 historico_impressoes.db-*
