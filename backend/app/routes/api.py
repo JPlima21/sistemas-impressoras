@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from flask import Blueprint, current_app, jsonify, request
 
 from config import (
@@ -11,6 +13,7 @@ from config import (
 from services.historico_service import (
     listar_impressoes_usuarios,
     resumir_impressoes_usuarios,
+    resumir_impressoes_usuarios_por_porta,
     salvar_impressao_usuario,
 )
 from services.mariadb_service import testar_conexao_mariadb
@@ -254,6 +257,73 @@ def create_api_blueprint(monitor_service, printer_config_service):
                 ],
             }
         )
+
+    # Retorna o ranking mensal de usuarios e identifica a impressora principal por porta.
+    @api_bp.route("/api/relatorios/mensal/usuarios")
+    def api_relatorio_mensal_usuarios():
+        mes = str(request.args.get("mes") or "").strip()
+
+        try:
+            inicio = datetime.strptime(mes, "%Y-%m")
+        except ValueError:
+            return jsonify({"erro": "Informe o mes no formato YYYY-MM."}), 400
+
+        if inicio.strftime("%Y-%m") != mes:
+            return jsonify({"erro": "Informe o mes no formato YYYY-MM."}), 400
+
+        fim = (
+            inicio.replace(year=inicio.year + 1, month=1)
+            if inicio.month == 12
+            else inicio.replace(month=inicio.month + 1)
+        )
+        registros = resumir_impressoes_usuarios_por_porta(
+            None,
+            {
+                "data_inicio": inicio.strftime("%Y-%m-%d"),
+                "data_fim": fim.strftime("%Y-%m-%d"),
+            },
+        )
+
+        nomes = monitor_service.get_mapa_nomes_impressoras()
+        impressoras_por_porta = {
+            ("PAPERCUT_" + config["ip"]).upper(): nomes.get(config["id"], config["id"])
+            for config in printer_config_service.list_configs()
+        }
+        usuarios = {}
+
+        for registro in registros:
+            usuario = registro["usuario"]
+            paginas = int(registro.get("total_paginas") or 0)
+            trabalhos = int(registro.get("total_trabalhos") or 0)
+            porta = str(registro.get("porta") or "").upper()
+            resumo = usuarios.setdefault(
+                usuario,
+                {
+                    "usuario": usuario,
+                    "total_paginas": 0,
+                    "total_trabalhos": 0,
+                    "impressora_principal": "Nao identificada",
+                    "paginas_impressora_principal": -1,
+                },
+            )
+            resumo["total_paginas"] += paginas
+            resumo["total_trabalhos"] += trabalhos
+
+            if paginas > resumo["paginas_impressora_principal"]:
+                resumo["paginas_impressora_principal"] = paginas
+                resumo["impressora_principal"] = impressoras_por_porta.get(
+                    porta,
+                    porta or "Nao identificada",
+                )
+
+        ranking = sorted(
+            usuarios.values(),
+            key=lambda item: (-item["total_paginas"], item["usuario"].lower()),
+        )
+        for item in ranking:
+            item.pop("paginas_impressora_principal", None)
+
+        return jsonify({"mes": mes, "usuarios": ranking})
 
     # Retorna informações internas para diagnosticar o estado do monitor e do histórico
     @api_bp.route("/api/debug/historico")

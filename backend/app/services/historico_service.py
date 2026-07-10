@@ -859,3 +859,28 @@ def resumir_impressoes_usuarios(caminho_banco, filtros=None):
             )
             return cursor.fetchall()
 
+
+
+# Agrupa paginas e trabalhos por usuario e porta para compor o relatorio mensal.
+def resumir_impressoes_usuarios_por_porta(caminho_banco, filtros=None):
+    sql_where, parametros = _montar_filtros_impressoes_usuarios(filtros)
+
+    with _obter_conexao(caminho_banco) as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT
+                    usuario,
+                    UPPER(TRIM(COALESCE(porta, ''))) AS porta,
+                    SUM(paginas) AS total_paginas,
+                    COUNT(*) AS total_trabalhos,
+                    MIN(data_hora) AS primeira_impressao,
+                    MAX(data_hora) AS ultima_impressao
+                FROM impressoes_usuarios
+                {sql_where}
+                GROUP BY usuario, UPPER(TRIM(COALESCE(porta, '')))
+                ORDER BY usuario, total_paginas DESC
+                """,
+                tuple(parametros),
+            )
+            return cursor.fetchall()

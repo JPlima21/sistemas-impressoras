@@ -1042,7 +1042,6 @@ function montarLinhasResumoMensal(itens) {
         .map((item) => `
             <tr>
                 <td>${escaparHtml(item.nome || item.id)}</td>
-                <td>${escaparHtml(obterSiglaToken(item.token_tipo))}</td>
                 <td class="number">${formatarMoeda(item.token_valor)}</td>
                 <td class="number">${formatarNumero(item.impressoes_mes)}</td>
                 <td class="number">${formatarMoeda(Number(item.impressoes_mes || 0) * Number(item.token_valor || 0))}</td>
@@ -1050,7 +1049,34 @@ function montarLinhasResumoMensal(itens) {
         `)
         .join("");
 }
-function imprimirRelatorioMensal() {
+
+function montarLinhasRankingUsuarios(usuarios) {
+    const totalPaginas = usuarios.reduce((total, item) => total + Number(item.total_paginas || 0), 0);
+
+    if (!usuarios.length) {
+        return `<tr><td colspan="6" class="empty">Nenhuma impressao por usuario encontrada no periodo.</td></tr>`;
+    }
+
+    return usuarios.slice(0, 10).map((item) => {
+        const trabalhos = Number(item.total_trabalhos || 0);
+        const paginas = Number(item.total_paginas || 0);
+        const media = trabalhos ? paginas / trabalhos : 0;
+        const participacao = totalPaginas ? (paginas / totalPaginas) * 100 : 0;
+
+        return `
+            <tr>
+                <td>${escaparHtml(item.usuario)}</td>
+                <td class="number">${formatarNumero(trabalhos)}</td>
+                <td class="number">${formatarNumero(paginas)}</td>
+                <td class="number">${media.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}</td>
+                <td>${escaparHtml(item.impressora_principal || "Nao identificada")}</td>
+                <td class="number">${participacao.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</td>
+            </tr>
+        `;
+    }).join("");
+}
+
+async function imprimirRelatorioMensal() {
     const mesSelecionado = document.getElementById("filtro-data-mes")?.value || obterMesAtualIso();
     const itens = obterItensRelatorioMensal(mesSelecionado);
     const totalMes = itens.reduce((total, item) => total + Number(item.impressoes_mes || 0), 0);
@@ -1062,13 +1088,26 @@ function imprimirRelatorioMensal() {
         dateStyle: "short",
         timeStyle: "short",
     }).format(new Date());
-    const janela = window.open("", "_blank", "width=1024,height=768");
+    const versao = document.querySelector('meta[name="system-version"]')?.content || "desconhecida";
+    const relatorioParcial = mesSelecionado === obterMesAtualIso();
+    const janela = window.open("", "_blank", "width=1100,height=800");
 
     if (!janela) {
         alert("Nao foi possivel abrir a janela de impressao.");
         return;
     }
 
+    janela.document.write("<p style='font-family:Arial;padding:24px'>Preparando relatorio mensal...</p>");
+
+    let usuarios = [];
+    try {
+        const payload = await buscarJson(`/api/relatorios/mensal/usuarios?mes=${encodeURIComponent(mesSelecionado)}`);
+        usuarios = normalizarListaApi(payload?.usuarios);
+    } catch (error) {
+        console.error("Erro ao carregar ranking mensal de usuarios:", error);
+    }
+
+    janela.document.open();
     janela.document.write(`
         <!DOCTYPE html>
         <html lang="pt-br">
@@ -1076,97 +1115,69 @@ function imprimirRelatorioMensal() {
             <meta charset="UTF-8">
             <title>Relatorio mensal de impressoes</title>
             <style>
-                body {
-                    margin: 32px;
-                    color: #111827;
-                    font-family: Arial, sans-serif;
-                }
-                header {
-                    display: flex;
-                    justify-content: space-between;
-                    gap: 24px;
-                    border-bottom: 2px solid #111827;
-                    padding-bottom: 14px;
-                    margin-bottom: 22px;
-                }
-                h1 {
-                    margin: 0;
-                    font-size: 22px;
-                }
-                h2 {
-                    margin: 24px 0 10px;
-                    font-size: 16px;
-                }
-                .meta {
-                    text-align: right;
-                    font-size: 12px;
-                    color: #4b5563;
-                }
-                .total {
-                    margin: 16px 0;
-                    padding: 12px;
-                    border: 1px solid #d1d5db;
-                    background: #f9fafb;
-                    font-size: 15px;
-                    font-weight: 700;
-                }
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    font-size: 12px;
-                }
-                th,
-                td {
-                    border: 1px solid #d1d5db;
-                    padding: 7px 8px;
-                    text-align: left;
-                }
-                th {
-                    background: #e5e7eb;
-                }
-                .number {
-                    text-align: right;
-                }
-                .empty {
-                    text-align: center;
-                    color: #6b7280;
-                }
-                @media print {
-                    body {
-                        margin: 18mm;
-                    }
-                }
+                @page { size: A4; margin: 15mm; }
+                * { box-sizing: border-box; }
+                body { margin: 0; color: #0f172a; font-family: Arial, sans-serif; }
+                header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 18px; }
+                h1 { margin: 0 0 4px; font-size: 22px; }
+                h2 { margin: 22px 0 10px; font-size: 16px; }
+                p { margin: 4px 0; }
+                .subtitle, .meta, .note { color: #64748b; font-size: 11px; }
+                .meta { text-align: right; }
+                .status { display: inline-block; margin: 0 0 16px; padding: 5px 9px; border-radius: 999px; background: #e0f2fe; color: #0369a1; font-size: 10px; font-weight: 700; }
+                .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }
+                .kpi { border: 1px solid #cbd5e1; border-top: 3px solid #0ea5e9; padding: 12px; text-align: center; }
+                .kpi strong { display: block; font-size: 19px; }
+                .kpi span { color: #64748b; font-size: 9px; text-transform: uppercase; }
+                table { width: 100%; border-collapse: collapse; font-size: 11px; }
+                th, td { border: 1px solid #cbd5e1; padding: 7px 8px; text-align: left; }
+                th { background: #0f172a; color: #fff; font-size: 10px; }
+                tbody tr:nth-child(even) { background: #f1f5f9; }
+                tfoot { background: #e0f2fe; font-weight: 700; }
+                .number { text-align: right; }
+                .empty { padding: 18px; text-align: center; color: #64748b; }
+                .page-break { break-before: page; page-break-before: always; }
+                .footer { margin-top: 28px; padding-top: 8px; border-top: 1px solid #cbd5e1; color: #64748b; font-size: 9px; text-align: center; }
+                @media print { .page { min-height: 250mm; } }
             </style>
         </head>
         <body>
-            <header>
-                <div>
-                    <h1>Relatorio mensal de impressoes</h1>
-                    <p>Periodo: ${escaparHtml(formatarMesIso(mesSelecionado))}</p>
+            <section class="page">
+                <header>
+                    <div>
+                        <h1>Relatorio mensal de impressoes</h1>
+                        <p class="subtitle">Resumo de producao e custos por impressora</p>
+                    </div>
+                    <div class="meta"><b>Competencia</b><br>${escaparHtml(formatarMesIso(mesSelecionado))}<br><br><b>Emitido em</b><br>${escaparHtml(emitidoEm)}</div>
+                </header>
+                <span class="status">${relatorioParcial ? "RELATORIO PARCIAL" : "MES FECHADO"}</span>
+                <div class="kpis">
+                    <div class="kpi"><strong>${formatarNumero(totalMes)}</strong><span>Impressoes no mes</span></div>
+                    <div class="kpi"><strong>${formatarNumero(itens.length)}</strong><span>Impressoras</span></div>
+                    <div class="kpi"><strong>${formatarMoeda(valorTotalMes)}</strong><span>Valor total</span></div>
                 </div>
-                <div class="meta">
-                    <p>Emitido em</p>
-                    <strong>${escaparHtml(emitidoEm)}</strong>
-                </div>
-            </header>
+                <h2>Resumo por impressora</h2>
+                <table>
+                    <thead><tr><th>Impressora</th><th class="number">Valor unitario</th><th class="number">Total de impressoes no mes</th><th class="number">Valor total</th></tr></thead>
+                    <tbody>${montarLinhasResumoMensal(itens)}</tbody>
+                    <tfoot><tr><td>TOTAL</td><td class="number">-</td><td class="number">${formatarNumero(totalMes)}</td><td class="number">${formatarMoeda(valorTotalMes)}</td></tr></tfoot>
+                </table>
+                <div class="footer">Monitor de Impressoras • v${escaparHtml(versao)} • Dados do contador mensal das impressoras</div>
+            </section>
 
-            <h2>Resumo por impressora</h2>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Impressora</th>
-                        <th>Token</th>
-                        <th>Valor unitario</th>
-                        <th>Impressoes no mes</th>
-                        <th>Valor total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${montarLinhasResumoMensal(itens)}
-                </tbody>
-            </table>
-
-            <div class="total">Total do mes: ${formatarNumero(totalMes)} impressoes | ${formatarMoeda(valorTotalMes)}</div>
+            <section class="page page-break">
+                <header>
+                    <div><h1>Detalhamento de utilizacao</h1><p class="subtitle">Dados agrupados por usuario e periodo</p></div>
+                    <div class="meta"><b>Competencia</b><br>${escaparHtml(formatarMesIso(mesSelecionado))}</div>
+                </header>
+                <h2>Ranking de usuarios</h2>
+                <table>
+                    <thead><tr><th>Usuario</th><th class="number">Trabalhos</th><th class="number">Paginas</th><th class="number">Media/job</th><th>Impressora principal</th><th class="number">Participacao</th></tr></thead>
+                    <tbody>${montarLinhasRankingUsuarios(usuarios)}</tbody>
+                </table>
+                <p class="note">A participacao representa o percentual de paginas do usuario em relacao ao total registrado no periodo.</p>
+                <div class="footer">Monitor de Impressoras • v${escaparHtml(versao)} • Ranking limitado aos 10 usuarios com maior volume</div>
+            </section>
         </body>
         </html>
     `);
