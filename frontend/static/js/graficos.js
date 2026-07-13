@@ -21,7 +21,10 @@ const graficosState = {
     eventosImpressoesUsuarios: [],
     impressoesUsuariosPorMes: new Map(),
     usuarioDetalhesAtual: "",
+    eventosDetalhesUsuario: [],
     impressoraDetalhesAtual: null,
+    usuariosDetalhesImpressora: [],
+    dadosDetalhesImpressora: {},
     periodoDetalhesImpressora: { inicio: "", fim: "" },
     periodoDetalhesUsuario: { inicio: "", fim: "" },
     periodoLinhaHistorico: "dia",
@@ -1359,6 +1362,7 @@ function atualizarPopupDetalhesUsuario(usuario, periodo, eventos) {
     const titulo = document.getElementById("titulo-modal-detalhes-usuario");
     const resumo = document.getElementById("resumo-modal-detalhes-usuario");
     const tbody = document.getElementById("tabela-modal-detalhes-usuario");
+    const botaoImprimir = document.getElementById("botao-modal-usuario-imprimir");
 
     if (!titulo || !resumo || !tbody) {
         return;
@@ -1367,6 +1371,11 @@ function atualizarPopupDetalhesUsuario(usuario, periodo, eventos) {
     const computadores = new Set(eventos.map((evento) => evento.computador).filter(Boolean));
     const impressoras = new Set(eventos.map((evento) => evento.impressora).filter(Boolean));
     const totalPaginas = eventos.reduce((total, evento) => total + Number(evento.paginas || 0), 0);
+
+    graficosState.eventosDetalhesUsuario = eventos;
+    if (botaoImprimir) {
+        botaoImprimir.disabled = eventos.length === 0;
+    }
 
     titulo.innerText = usuario;
     resumo.innerText = `Periodo: ${formatarPeriodoDetalhesUsuario(periodo)} | Jobs: ${formatarNumero(eventos.length)} | Paginas: ${formatarNumero(totalPaginas)} | Computadores: ${formatarNumero(computadores.size)} | Impressoras: ${formatarNumero(impressoras.size)}`;
@@ -1395,12 +1404,17 @@ function atualizarPopupDetalhesUsuario(usuario, periodo, eventos) {
 async function carregarDetalhesUsuario(usuario, periodo) {
     const resumo = document.getElementById("resumo-modal-detalhes-usuario");
     const tbody = document.getElementById("tabela-modal-detalhes-usuario");
+    const botaoImprimir = document.getElementById("botao-modal-usuario-imprimir");
 
     if (!resumo || !tbody || !usuario) {
         return;
     }
 
     graficosState.periodoDetalhesUsuario = periodo;
+    graficosState.eventosDetalhesUsuario = [];
+    if (botaoImprimir) {
+        botaoImprimir.disabled = true;
+    }
     resumo.innerText = `Periodo: ${formatarPeriodoDetalhesUsuario(periodo)} | Carregando jobs...`;
     tbody.innerHTML = `
         <tr>
@@ -1444,6 +1458,101 @@ function aplicarPeriodoDetalhesUsuario() {
     carregarDetalhesUsuario(graficosState.usuarioDetalhesAtual, periodo);
 }
 
+function imprimirRelatorioIndividualUsuario() {
+    const usuario = graficosState.usuarioDetalhesAtual;
+    const periodo = graficosState.periodoDetalhesUsuario;
+    const eventos = graficosState.eventosDetalhesUsuario;
+
+    if (!usuario || !eventos.length) {
+        return;
+    }
+
+    const totalPaginas = eventos.reduce((total, evento) => total + Number(evento.paginas || 0), 0);
+    const computadores = [...new Set(eventos.map((evento) => evento.computador).filter(Boolean))];
+    const impressoras = [...new Set(eventos.map((evento) => evento.impressora).filter(Boolean))];
+    const emitidoEm = new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "short",
+        timeStyle: "short",
+    }).format(new Date());
+    const versao = document.querySelector('meta[name="system-version"]')?.content || "desconhecida";
+    const janela = window.open("", "_blank", "width=1100,height=800");
+
+    if (!janela) {
+        alert("Nao foi possivel abrir a janela de impressao.");
+        return;
+    }
+
+    const linhas = eventos.map((evento) => `
+        <tr>
+            <td>${escaparHtml(evento.data_hora)}</td>
+            <td>${escaparHtml(evento.computador || "-")}</td>
+            <td>${escaparHtml(evento.impressora || "-")}</td>
+            <td>${escaparHtml(evento.documento || "-")}</td>
+            <td class="number">${formatarNumero(evento.paginas)}</td>
+            <td>${escaparHtml(evento.job_id || "-")}</td>
+        </tr>
+    `).join("");
+
+    janela.document.open();
+    janela.document.write(`
+        <!DOCTYPE html>
+        <html lang="pt-br">
+        <head>
+            <meta charset="UTF-8">
+            <title>Relatorio individual - ${escaparHtml(usuario)}</title>
+            <style>
+                @page { size: A4 landscape; margin: 12mm; }
+                * { box-sizing: border-box; }
+                body { margin: 0; color: #0f172a; font-family: Arial, sans-serif; }
+                header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px; }
+                h1 { margin: 0 0 4px; font-size: 22px; }
+                h2 { margin: 18px 0 9px; font-size: 15px; }
+                p { margin: 4px 0; }
+                .subtitle, .meta, .details { color: #64748b; font-size: 11px; }
+                .meta { text-align: right; }
+                .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0; }
+                .kpi { border: 1px solid #cbd5e1; border-top: 3px solid #0ea5e9; padding: 11px; text-align: center; }
+                .kpi strong { display: block; font-size: 18px; }
+                .kpi span { color: #64748b; font-size: 9px; text-transform: uppercase; }
+                .details { margin: 0 0 14px; line-height: 1.5; }
+                table { width: 100%; border-collapse: collapse; font-size: 9px; }
+                th, td { border: 1px solid #cbd5e1; padding: 6px; text-align: left; vertical-align: top; }
+                th { background: #0f172a; color: #fff; font-size: 9px; }
+                tbody tr:nth-child(even) { background: #f1f5f9; }
+                .number { text-align: right; }
+                .footer { margin-top: 18px; padding-top: 8px; border-top: 1px solid #cbd5e1; color: #64748b; font-size: 9px; text-align: center; }
+                tr { break-inside: avoid; page-break-inside: avoid; }
+            </style>
+        </head>
+        <body>
+            <header>
+                <div>
+                    <h1>Relatorio individual de impressoes</h1>
+                    <p class="subtitle">Usuario: ${escaparHtml(usuario)}</p>
+                </div>
+                <div class="meta"><b>Periodo</b><br>${escaparHtml(formatarPeriodoDetalhesUsuario(periodo))}<br><br><b>Emitido em</b><br>${escaparHtml(emitidoEm)}</div>
+            </header>
+            <div class="kpis">
+                <div class="kpi"><strong>${formatarNumero(eventos.length)}</strong><span>Jobs</span></div>
+                <div class="kpi"><strong>${formatarNumero(totalPaginas)}</strong><span>Paginas</span></div>
+                <div class="kpi"><strong>${formatarNumero(computadores.length)}</strong><span>Computadores</span></div>
+                <div class="kpi"><strong>${formatarNumero(impressoras.length)}</strong><span>Impressoras</span></div>
+            </div>
+            <p class="details"><b>Computadores:</b> ${escaparHtml(computadores.join(", ") || "Nao identificados")}<br><b>Impressoras:</b> ${escaparHtml(impressoras.join(", ") || "Nao identificadas")}</p>
+            <h2>Jobs do periodo</h2>
+            <table>
+                <thead><tr><th>Data/hora</th><th>Computador</th><th>Impressora</th><th>Documento</th><th class="number">Paginas</th><th>Job ID</th></tr></thead>
+                <tbody>${linhas}</tbody>
+            </table>
+            <div class="footer">Monitor de Impressoras | v${escaparHtml(versao)} | Relatorio individual por usuario</div>
+        </body>
+        </html>
+    `);
+    janela.document.close();
+    janela.focus();
+    janela.print();
+}
+
 function inicializarPopupDetalhesUsuario() {
     document.querySelectorAll("[data-user-jobs-close]").forEach((elemento) => {
         if (elemento.dataset.bound) {
@@ -1455,10 +1564,16 @@ function inicializarPopupDetalhesUsuario() {
     });
 
     const botaoAplicar = document.getElementById("botao-modal-usuario-aplicar");
+    const botaoImprimir = document.getElementById("botao-modal-usuario-imprimir");
 
     if (botaoAplicar && !botaoAplicar.dataset.bound) {
         botaoAplicar.addEventListener("click", aplicarPeriodoDetalhesUsuario);
         botaoAplicar.dataset.bound = "true";
+    }
+
+    if (botaoImprimir && !botaoImprimir.dataset.bound) {
+        botaoImprimir.addEventListener("click", imprimirRelatorioIndividualUsuario);
+        botaoImprimir.dataset.bound = "true";
     }
 
     if (!document.body.dataset.userJobsEscapeBound) {
@@ -1503,10 +1618,17 @@ function atualizarPopupUsuariosImpressora(impressora, periodo, usuarios, dadosIm
     const titulo = document.getElementById("titulo-modal-usuarios-impressora");
     const resumo = document.getElementById("resumo-modal-usuarios-impressora");
     const tbody = document.getElementById("tabela-modal-usuarios-impressora");
+    const botaoImprimir = document.getElementById("botao-modal-impressora-imprimir");
     if (!titulo || !resumo || !tbody) return;
 
     const totalPaginas = usuarios.reduce((total, item) => total + Number(item.total_paginas || 0), 0);
     const totalTrabalhos = usuarios.reduce((total, item) => total + Number(item.total_trabalhos || 0), 0);
+    graficosState.usuariosDetalhesImpressora = usuarios;
+    graficosState.dadosDetalhesImpressora = dadosImpressora;
+    if (botaoImprimir) {
+        botaoImprimir.disabled = usuarios.length === 0;
+    }
+
     titulo.innerText = impressora.nome || impressora.id;
     resumo.innerText = `IP: ${dadosImpressora.ip || impressora.ip || "-"} | Periodo: ${formatarPeriodoDetalhesUsuario(periodo)} | Usuarios: ${formatarNumero(usuarios.length)} | Trabalhos: ${formatarNumero(totalTrabalhos)} | Paginas: ${formatarNumero(totalPaginas)}`;
 
@@ -1529,9 +1651,16 @@ function atualizarPopupUsuariosImpressora(impressora, periodo, usuarios, dadosIm
 async function carregarUsuariosImpressora(impressora, periodo) {
     const resumo = document.getElementById("resumo-modal-usuarios-impressora");
     const tbody = document.getElementById("tabela-modal-usuarios-impressora");
+    const botaoImprimir = document.getElementById("botao-modal-impressora-imprimir");
     if (!resumo || !tbody || !impressora?.id) return;
 
     graficosState.periodoDetalhesImpressora = periodo;
+    graficosState.usuariosDetalhesImpressora = [];
+    graficosState.dadosDetalhesImpressora = {};
+    if (botaoImprimir) {
+        botaoImprimir.disabled = true;
+    }
+
     resumo.innerText = `Periodo: ${formatarPeriodoDetalhesUsuario(periodo)} | Carregando usuarios...`;
     tbody.innerHTML = `<tr><td colspan="5" class="chart-loading">Carregando usuarios...</td></tr>`;
 
@@ -1562,6 +1691,99 @@ async function abrirPopupUsuariosImpressora(item) {
     await carregarUsuariosImpressora(impressora, periodo);
 }
 
+function imprimirRelatorioImpressora() {
+    const impressora = graficosState.impressoraDetalhesAtual;
+    const periodo = graficosState.periodoDetalhesImpressora;
+    const usuarios = graficosState.usuariosDetalhesImpressora;
+    const dadosImpressora = graficosState.dadosDetalhesImpressora;
+
+    if (!impressora || !usuarios.length) {
+        return;
+    }
+
+    const nomeImpressora = impressora.nome || impressora.id;
+    const ipImpressora = dadosImpressora.ip || impressora.ip || "-";
+    const totalPaginas = usuarios.reduce((total, item) => total + Number(item.total_paginas || 0), 0);
+    const totalTrabalhos = usuarios.reduce((total, item) => total + Number(item.total_trabalhos || 0), 0);
+    const emitidoEm = new Intl.DateTimeFormat("pt-BR", {
+        dateStyle: "short",
+        timeStyle: "short",
+    }).format(new Date());
+    const versao = document.querySelector('meta[name="system-version"]')?.content || "desconhecida";
+    const janela = window.open("", "_blank", "width=1100,height=800");
+
+    if (!janela) {
+        alert("Nao foi possivel abrir a janela de impressao.");
+        return;
+    }
+
+    const linhas = usuarios.map((item) => `
+        <tr>
+            <td>${escaparHtml(item.usuario || "-")}</td>
+            <td class="number">${formatarNumero(item.total_trabalhos)}</td>
+            <td class="number">${formatarNumero(item.total_paginas)}</td>
+            <td>${escaparHtml(item.primeira_impressao || "-")}</td>
+            <td>${escaparHtml(item.ultima_impressao || "-")}</td>
+        </tr>
+    `).join("");
+
+    janela.document.open();
+    janela.document.write(`
+        <!DOCTYPE html>
+        <html lang="pt-br">
+        <head>
+            <meta charset="UTF-8">
+            <title>Relatorio da impressora - ${escaparHtml(nomeImpressora)}</title>
+            <style>
+                @page { size: A4; margin: 15mm; }
+                * { box-sizing: border-box; }
+                body { margin: 0; color: #0f172a; font-family: Arial, sans-serif; }
+                header { display: flex; justify-content: space-between; gap: 24px; border-bottom: 2px solid #0f172a; padding-bottom: 12px; margin-bottom: 16px; }
+                h1 { margin: 0 0 4px; font-size: 22px; }
+                h2 { margin: 18px 0 9px; font-size: 15px; }
+                p { margin: 4px 0; }
+                .subtitle, .meta { color: #64748b; font-size: 11px; }
+                .meta { text-align: right; }
+                .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }
+                .kpi { border: 1px solid #cbd5e1; border-top: 3px solid #10b981; padding: 11px; text-align: center; }
+                .kpi strong { display: block; font-size: 18px; }
+                .kpi span { color: #64748b; font-size: 9px; text-transform: uppercase; }
+                table { width: 100%; border-collapse: collapse; font-size: 10px; }
+                th, td { border: 1px solid #cbd5e1; padding: 7px; text-align: left; vertical-align: top; }
+                th { background: #0f172a; color: #fff; font-size: 9px; }
+                tbody tr:nth-child(even) { background: #f1f5f9; }
+                .number { text-align: right; }
+                .footer { margin-top: 18px; padding-top: 8px; border-top: 1px solid #cbd5e1; color: #64748b; font-size: 9px; text-align: center; }
+                tr { break-inside: avoid; page-break-inside: avoid; }
+            </style>
+        </head>
+        <body>
+            <header>
+                <div>
+                    <h1>Relatorio de impressoes por impressora</h1>
+                    <p class="subtitle">Impressora: ${escaparHtml(nomeImpressora)} | IP: ${escaparHtml(ipImpressora)}</p>
+                </div>
+                <div class="meta"><b>Periodo</b><br>${escaparHtml(formatarPeriodoDetalhesUsuario(periodo))}<br><br><b>Emitido em</b><br>${escaparHtml(emitidoEm)}</div>
+            </header>
+            <div class="kpis">
+                <div class="kpi"><strong>${formatarNumero(usuarios.length)}</strong><span>Usuarios</span></div>
+                <div class="kpi"><strong>${formatarNumero(totalTrabalhos)}</strong><span>Trabalhos</span></div>
+                <div class="kpi"><strong>${formatarNumero(totalPaginas)}</strong><span>Paginas</span></div>
+            </div>
+            <h2>Utilizacao por usuario</h2>
+            <table>
+                <thead><tr><th>Usuario</th><th class="number">Trabalhos</th><th class="number">Paginas</th><th>Primeira impressao</th><th>Ultima impressao</th></tr></thead>
+                <tbody>${linhas}</tbody>
+            </table>
+            <div class="footer">Monitor de Impressoras | v${escaparHtml(versao)} | Relatorio individual por impressora</div>
+        </body>
+        </html>
+    `);
+    janela.document.close();
+    janela.focus();
+    janela.print();
+}
+
 function inicializarPopupUsuariosImpressora() {
     document.querySelectorAll("[data-printer-users-close]").forEach((elemento) => {
         if (!elemento.dataset.bound) {
@@ -1571,6 +1793,7 @@ function inicializarPopupUsuariosImpressora() {
     });
 
     const botao = document.getElementById("botao-modal-impressora-aplicar");
+    const botaoImprimir = document.getElementById("botao-modal-impressora-imprimir");
     if (botao && !botao.dataset.bound) {
         botao.addEventListener("click", () => {
             if (graficosState.impressoraDetalhesAtual) {
@@ -1581,6 +1804,11 @@ function inicializarPopupUsuariosImpressora() {
             }
         });
         botao.dataset.bound = "true";
+    }
+
+    if (botaoImprimir && !botaoImprimir.dataset.bound) {
+        botaoImprimir.addEventListener("click", imprimirRelatorioImpressora);
+        botaoImprimir.dataset.bound = "true";
     }
 
     if (!document.body.dataset.printerUsersEscapeBound) {

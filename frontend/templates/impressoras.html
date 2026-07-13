@@ -36,7 +36,8 @@
     </section>
 
     <section class="printer-management-layout">
-        <article class="card management-card">
+        <div class="management-stack">
+            <article class="card management-card">
             <div class="chart-view-header">
                 <div>
                     <h2>Nova Impressora</h2>
@@ -80,7 +81,20 @@
 
                 <p id="form-feedback" class="form-feedback" aria-live="polite"></p>
             </form>
-        </article>
+            </article>
+
+            <article class="card management-card script-status-card">
+                <div class="chart-view-header">
+                    <div>
+                        <h2>Recebimento do Script</h2>
+                        <p class="chart-view-subtitle">Ultimo evento recebido do servidor de impressao.</p>
+                    </div>
+                </div>
+                <div id="status-script-envio" class="script-status-grid" aria-live="polite">
+                    <p class="inventory-empty">Carregando status do script...</p>
+                </div>
+            </article>
+        </div>
 
         <article class="card management-card">
             <div class="inventory-header">

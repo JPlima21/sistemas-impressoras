@@ -12,6 +12,7 @@ from config import (
 )
 from services.historico_service import (
     listar_impressoes_usuarios,
+    obter_status_importacao_impressoes_usuarios,
     resumir_impressoes_usuarios,
     resumir_impressoes_usuarios_por_porta,
     salvar_impressao_usuario,
@@ -209,7 +210,31 @@ def create_api_blueprint(monitor_service, printer_config_service):
             return jsonify({"erro": str(exc)}), 400
 
         status = 201 if registro["criado"] else 200
-        return jsonify({"mensagem": "Impressao registrada com sucesso.", "registro": registro}), status
+        return jsonify(
+            {
+                "ok": True,
+                "mensagem": "Impressao registrada com sucesso.",
+                "status_envio": "recebido",
+                "recebido_em": datetime.now().isoformat(sep=" ", timespec="seconds"),
+                "registro": registro,
+            }
+        ), status
+
+    # Retorna o status do recebimento de eventos enviados pelo servidor de impressao
+    @api_bp.route("/api/impressoes-usuarios/status")
+    def api_status_impressoes_usuarios():
+        status = obter_status_importacao_impressoes_usuarios(None)
+        ultimo_evento = status.get("ultimo_evento")
+
+        return jsonify(
+            {
+                "ok": True,
+                "total_eventos": status.get("total_eventos", 0),
+                "ultimo_evento_em": formatar_timestamp_api(status.get("ultimo_evento_em")),
+                "ultimo_recebimento_em": formatar_timestamp_api(status.get("ultimo_recebimento_em")),
+                "ultimo_evento": formatar_linha_impressao_usuario(ultimo_evento) if ultimo_evento else None,
+            }
+        )
 
     # Lista os eventos detalhados de impressao por usuario com filtros opcionais
     @api_bp.route("/api/impressoes-usuarios")

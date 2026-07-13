@@ -836,6 +836,51 @@ def listar_impressoes_usuarios(caminho_banco, filtros=None):
             return cursor.fetchall()
 
 
+def obter_status_importacao_impressoes_usuarios(caminho_banco):
+    with _obter_conexao(caminho_banco) as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT
+                    COUNT(*) AS total_eventos,
+                    MAX(data_hora) AS ultimo_evento_em,
+                    MAX(criado_em) AS ultimo_recebimento_em
+                FROM impressoes_usuarios
+                """
+            )
+            status = cursor.fetchone() or {}
+
+            cursor.execute(
+                """
+                SELECT
+                    servidor,
+                    record_id,
+                    event_id,
+                    data_hora,
+                    usuario,
+                    impressora,
+                    documento,
+                    paginas,
+                    computador,
+                    job_id,
+                    porta,
+                    tamanho_bytes,
+                    criado_em
+                FROM impressoes_usuarios
+                ORDER BY criado_em DESC, id DESC
+                LIMIT 1
+                """
+            )
+            ultimo_evento = cursor.fetchone()
+
+    return {
+        "total_eventos": int(status.get("total_eventos") or 0),
+        "ultimo_evento_em": status.get("ultimo_evento_em"),
+        "ultimo_recebimento_em": status.get("ultimo_recebimento_em"),
+        "ultimo_evento": ultimo_evento,
+    }
+
+
 # Soma paginas e trabalhos por usuario, deixando o agrupamento para o MariaDB.
 def resumir_impressoes_usuarios(caminho_banco, filtros=None):
     sql_where, parametros = _montar_filtros_impressoes_usuarios(filtros)

@@ -468,3 +468,25 @@
 .user-jobs-apply:hover {
     background: rgba(14, 165, 233, 0.25);
 }
+
+.user-jobs-print {
+    min-height: 38px;
+    margin-left: auto;
+    border: 1px solid rgba(52, 211, 153, 0.38);
+    border-radius: 10px;
+    background: rgba(16, 185, 129, 0.16);
+    color: #d1fae5;
+    padding: 8px 13px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.user-jobs-print:hover:not(:disabled) {
+    background: rgba(16, 185, 129, 0.26);
+}
+
+.user-jobs-print:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}

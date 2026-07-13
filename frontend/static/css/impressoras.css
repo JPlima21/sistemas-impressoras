@@ -224,3 +224,48 @@
     border: 1px dashed rgba(148, 163, 184, 0.2);
 }
 
+
+.management-stack {
+    display: grid;
+    gap: 16px;
+}
+
+.script-status-card .chart-view-header {
+    margin-bottom: 12px;
+}
+
+.script-status-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.script-status-item {
+    min-width: 0;
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.34);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+}
+
+.script-status-item span {
+    display: block;
+    margin-bottom: 5px;
+    color: #94a3b8;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+
+.script-status-item strong {
+    display: block;
+    overflow-wrap: anywhere;
+    color: #e0f2fe;
+    font-size: 13px;
+    line-height: 1.35;
+}
+
+.script-status-wide {
+    grid-column: 1 / -1;
+}

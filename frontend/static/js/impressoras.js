@@ -36,6 +36,89 @@ function formatarToken(impressora) {
     return `${tipo} (${formatarMoeda(impressora.token_valor)})`;
 }
 
+function formatarDataHora(valor) {
+    const texto = String(valor || "").trim();
+
+    if (!texto) {
+        return "N/A";
+    }
+
+    const match = texto.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}:\d{2}(?::\d{2})?)/);
+
+    if (!match) {
+        return texto;
+    }
+
+    return `${match[3]}/${match[2]}/${match[1]} ${match[4]}`;
+}
+
+function renderizarStatusScript(status) {
+    const container = document.getElementById("status-script-envio");
+
+    if (!container) {
+        return;
+    }
+
+    const ultimoEvento = status?.ultimo_evento;
+
+    if (!status?.ok || !ultimoEvento) {
+        container.innerHTML = `<p class="inventory-empty">Nenhum evento recebido do script ate o momento.</p>`;
+        return;
+    }
+
+    container.innerHTML = `
+        <div class="script-status-item script-status-wide">
+            <span>Ultimo recebimento</span>
+            <strong>${escaparHtml(formatarDataHora(status.ultimo_recebimento_em))}</strong>
+        </div>
+        <div class="script-status-item">
+            <span>Total recebido</span>
+            <strong>${escaparHtml(formatarTexto(status.total_eventos, "0"))}</strong>
+        </div>
+        <div class="script-status-item">
+            <span>Evento impresso em</span>
+            <strong>${escaparHtml(formatarDataHora(status.ultimo_evento_em))}</strong>
+        </div>
+        <div class="script-status-item">
+            <span>Usuario</span>
+            <strong>${escaparHtml(formatarTexto(ultimoEvento.usuario))}</strong>
+        </div>
+        <div class="script-status-item">
+            <span>Impressora</span>
+            <strong>${escaparHtml(formatarTexto(ultimoEvento.impressora))}</strong>
+        </div>
+        <div class="script-status-item">
+            <span>Computador</span>
+            <strong>${escaparHtml(formatarTexto(ultimoEvento.computador))}</strong>
+        </div>
+        <div class="script-status-item">
+            <span>RecordId</span>
+            <strong>${escaparHtml(formatarTexto(ultimoEvento.record_id))}</strong>
+        </div>
+    `;
+}
+
+async function carregarStatusScript() {
+    const container = document.getElementById("status-script-envio");
+
+    try {
+        const resposta = await fetch("/api/impressoes-usuarios/status");
+
+        if (!resposta.ok) {
+            throw new Error(`Nao foi possivel carregar status do script. HTTP ${resposta.status}`);
+        }
+
+        renderizarStatusScript(await resposta.json());
+    } catch (error) {
+        console.error(error);
+
+        if (container) {
+            container.innerHTML = `<p class="inventory-empty">Nao foi possivel carregar o status do script.</p>`;
+        }
+    }
+}
+
+
 function atualizarResumo(impressoras) {
     const total = impressoras.length;
     const online = impressoras.filter((item) => item.online).length;
@@ -201,6 +284,8 @@ async function excluirImpressora(impressoraId) {
 }
 
 async function inicializarPagina() {
+    carregarStatusScript();
+
     try {
         await carregarImpressoras();
     } catch (error) {
