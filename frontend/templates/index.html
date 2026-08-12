@@ -4,10 +4,14 @@
     <meta charset="UTF-8">
     <title>Monitor de Impressora</title>
     <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/production-sidebar.css">
     <link rel="stylesheet" href="/static/css/dashboard.css">
     <link rel="stylesheet" href="/static/css/responsive.css">
 </head>
-<body>
+<body class="production-navigation">
+
+{% set active_page = "dashboard" %}
+{% include "_production_sidebar.html" %}
 
 <div class="dashboard">
 
@@ -17,12 +21,6 @@
 
     <section class="dashboard-top-row">
         <div class="dashboard-top-left">
-            <nav class="top-nav" aria-label="Navegacao principal">
-                <a href="./" class="top-nav-link active" aria-current="page">Dashboard</a>
-                <a href="graficos" class="top-nav-link">Graficos</a>
-                <a href="configurações" class="top-nav-link">Configuracoes</a>
-            </nav>
-
             <div class="resumo-status">
                 <div class="card resumo-card resumo-total">
                     <span class="resumo-label">Total</span>
@@ -66,6 +64,7 @@
 </div>
 
 <script src="/static/js/dashboard.js"></script>
+<script src="/static/js/production-sidebar.js"></script>
 
 </body>
 </html>

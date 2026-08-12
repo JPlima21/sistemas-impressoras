@@ -4,20 +4,19 @@
     <meta charset="UTF-8">
     <title>Configuracoes</title>
     <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/production-sidebar.css">
     <link rel="stylesheet" href="/static/css/impressoras.css">
     <link rel="stylesheet" href="/static/css/responsive.css">
 </head>
-<body>
+<body class="production-navigation">
+
+{% set active_page = "configuracoes" %}
+{% include "_production_sidebar.html" %}
 
 <div class="dashboard">
 
     <header>
         <h1>Configuracoes</h1>
-        <nav class="top-nav" aria-label="Navegacao principal">
-            <a href="./" class="top-nav-link">Dashboard</a>
-            <a href="graficos" class="top-nav-link">Graficos</a>
-            <a href="configurações" class="top-nav-link active" aria-current="page">Configuracoes</a>
-        </nav>
     </header>
 
     <section class="resumo-status">
@@ -118,6 +117,7 @@
 </div>
 
 <script src="/static/js/impressoras.js"></script>
+<script src="/static/js/production-sidebar.js"></script>
 
 </body>
 </html>

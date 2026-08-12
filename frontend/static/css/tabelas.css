@@ -1,5 +1,7 @@
 .audit-table-wrapper {
+    max-height: 400px;
     overflow-x: auto;
+    overflow-y: auto;
 }
 
 .audit-table {
@@ -8,16 +10,19 @@
     font-size: 13px;
 }
 
+.audit-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    color: #f8fafc;
+    background: #334155;
+}
+
 .audit-table th,
 .audit-table td {
     padding: 10px 12px;
     border-bottom: 1px solid rgba(148, 163, 184, 0.14);
     text-align: left;
-}
-
-.audit-table th {
-    color: #f8fafc;
-    background: rgba(51, 65, 85, 0.55);
 }
 
 .audit-table td {

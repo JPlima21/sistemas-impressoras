@@ -15,6 +15,7 @@ from services.historico_service import (
     obter_status_importacao_impressoes_usuarios,
     resumir_impressoes_usuarios,
     resumir_impressoes_usuarios_por_porta,
+    resumir_consumos_contador,
     salvar_impressao_usuario,
 )
 from services.mariadb_service import testar_conexao_mariadb
@@ -24,6 +25,41 @@ from services.printer_config_service import TOKEN_VALORES
 # Cria e registra todas as rotas de API, recebendo os serviços usados pelos endpoints
 def create_api_blueprint(monitor_service, printer_config_service):
     api_bp = Blueprint("api", __name__)
+
+    # Lista totais mensais produzidos pelos deltas auditaveis do contador SNMP.
+    @api_bp.route("/api/relatorios/mensal/impressoras")
+    def api_relatorio_mensal_impressoras():
+        mes = str(request.args.get("mes") or "").strip() or None
+        if mes:
+            try:
+                mes_normalizado = datetime.strptime(mes, "%Y-%m").strftime("%Y-%m")
+            except ValueError:
+                return jsonify({"erro": "Informe o mes no formato YYYY-MM."}), 400
+            if mes_normalizado != mes:
+                return jsonify({"erro": "Informe o mes no formato YYYY-MM."}), 400
+
+        registros = resumir_consumos_contador(None, mes)
+        consolidados = {}
+        for registro in registros:
+            impressora = str(registro["impressora"])
+            contador_copias = impressora.endswith("__copias")
+            impressora_id = impressora.removesuffix("__copias")
+            chave = (registro["competencia"], impressora_id)
+            item = consolidados.setdefault(
+                chave,
+                {
+                    "competencia": registro["competencia"],
+                    "impressora": impressora_id,
+                    "total_paginas": 0,
+                    "total_copias": 0,
+                    "intervalos_especiais": 0,
+                },
+            )
+            campo_total = "total_copias" if contador_copias else "total_paginas"
+            item[campo_total] = int(registro.get("total_paginas") or 0)
+            item["intervalos_especiais"] += int(registro.get("intervalos_especiais") or 0)
+
+        return jsonify(list(consolidados.values()))
 
     # Formata timestamps para texto legível antes de enviar para a API
     def formatar_timestamp_api(valor):
@@ -310,8 +346,8 @@ def create_api_blueprint(monitor_service, printer_config_service):
         )
 
         nomes = monitor_service.get_mapa_nomes_impressoras()
-        impressoras_por_porta = {
-            ("PAPERCUT_" + config["ip"]).upper(): nomes.get(config["id"], config["id"])
+        impressoras_por_ip = {
+            str(config["ip"]).strip().upper(): nomes.get(config["id"], config["id"])
             for config in printer_config_service.list_configs()
         }
         usuarios = {}
@@ -320,7 +356,8 @@ def create_api_blueprint(monitor_service, printer_config_service):
             usuario = registro["usuario"]
             paginas = int(registro.get("total_paginas") or 0)
             trabalhos = int(registro.get("total_trabalhos") or 0)
-            porta = str(registro.get("porta") or "").upper()
+            porta = str(registro.get("porta") or "").strip().upper()
+            ip_impressora = porta.removeprefix("PAPERCUT_")
             resumo = usuarios.setdefault(
                 usuario,
                 {
@@ -336,8 +373,8 @@ def create_api_blueprint(monitor_service, printer_config_service):
 
             if paginas > resumo["paginas_impressora_principal"]:
                 resumo["paginas_impressora_principal"] = paginas
-                resumo["impressora_principal"] = impressoras_por_porta.get(
-                    porta,
+                resumo["impressora_principal"] = impressoras_por_ip.get(
+                    ip_impressora,
                     porta or "Nao identificada",
                 )
 

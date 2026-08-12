@@ -34,6 +34,10 @@
 }
 
 @media (max-width: 768px) {
+    .resumo-geral {
+        grid-template-columns: 1fr;
+    }
+
     .content {
         grid-template-columns: 1fr;
     }
@@ -53,6 +57,25 @@
         justify-content: stretch;
     }
 
+    .chart-tabs-actions,
+    .chart-filter-actions {
+        width: 100%;
+    }
+
+    .chart-series-toggle,
+    .chart-report-button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .chart-line-mode {
+        width: 100%;
+    }
+
+    .chart-line-mode-button {
+        flex: 1 1 0;
+    }
+
     .chart-tab-button {
         flex: 1 1 0;
         text-align: center;
@@ -64,5 +87,12 @@
 
     .toner-alert-list {
         grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 1180px) {
+    .charts-top-row {
+        grid-template-columns: 1fr;
+        gap: 12px;
     }
 }

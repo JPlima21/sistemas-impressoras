@@ -1,0 +1,24 @@
+<aside class="production-sidebar" id="production-sidebar">
+    <button class="production-sidebar-toggle" id="production-sidebar-toggle" type="button" aria-label="Recolher menu lateral" aria-expanded="true">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.5 5-5 5 5 5"></path></svg>
+    </button>
+    <a class="production-brand" href="/" aria-label="Monitor de Impressoras" title="Monitor de Impressoras">
+        <span class="production-brand-mark" aria-hidden="true">P</span>
+    </a>
+    <nav class="production-sidebar-nav" aria-label="Navegação principal">
+        <a href="/" class="{% if active_page == 'dashboard' %}active{% endif %}" aria-label="Dashboard" title="Dashboard" {% if active_page == 'dashboard' %}aria-current="page"{% endif %}>
+            <svg class="production-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>
+            <span class="production-nav-tooltip" role="tooltip">Dashboard</span>
+        </a>
+        <a href="/graficos" class="{% if active_page == 'graficos' %}active{% endif %}" aria-label="Gráficos" title="Gráficos" {% if active_page == 'graficos' %}aria-current="page"{% endif %}>
+            <svg class="production-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10"></path><path d="M10 20V4"></path><path d="M16 20v-7"></path><path d="M22 20H2"></path></svg>
+            <span class="production-nav-tooltip" role="tooltip">Gráficos</span>
+        </a>
+        <a href="/configuracoes" class="{% if active_page == 'configuracoes' %}active{% endif %}" aria-label="Configurações" title="Configurações" {% if active_page == 'configuracoes' %}aria-current="page"{% endif %}>
+            <svg class="production-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21h-4v-.08A1.7 1.7 0 0 0 9 19.37a1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.63 15 1.7 1.7 0 0 0 3.08 14H3v-4h.08A1.7 1.7 0 0 0 4.63 9a1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.63h.01A1.7 1.7 0 0 0 10 3.08V3h4v.08A1.7 1.7 0 0 0 15 4.63a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.37 9v.01A1.7 1.7 0 0 0 20.92 10H21v4h-.08A1.7 1.7 0 0 0 19.4 15Z"></path></svg>
+            <span class="production-nav-tooltip" role="tooltip">Configurações</span>
+        </a>
+    </nav>
+    <span class="production-sidebar-version" title="Versão {{ system_version }}">v{{ system_version }}</span>
+</aside>
+<button class="production-mobile-menu" id="production-mobile-menu" type="button" aria-label="Abrir menu" aria-expanded="false">☰</button>

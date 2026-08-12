@@ -9,6 +9,7 @@ from config import (
     MARIADB_USER,
 )
 from services.mariadb_service import obter_conexao_mariadb
+from services.contador_service import calcular_delta_contador
 
 
 CREATE_HISTORICO_TABLE_SQL = """
@@ -100,9 +101,51 @@ CREATE TABLE IF NOT EXISTS impressoes_usuarios (
     KEY idx_impressoes_usuarios_impressora_data (impressora, data_hora)
 )
 """
+CREATE_LEITURAS_CONTADOR_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS leituras_contador (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    impressora VARCHAR(255) NOT NULL,
+    mac VARCHAR(64) NULL,
+    contador BIGINT NOT NULL,
+    lido_em DATETIME(6) NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'valida',
+    PRIMARY KEY (id),
+    KEY idx_leituras_contador_impressora_data (impressora, lido_em, id)
+)
+"""
+CREATE_CONSUMOS_CONTADOR_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS consumos_contador (
+    id BIGINT NOT NULL AUTO_INCREMENT,
+    impressora VARCHAR(255) NOT NULL,
+    leitura_anterior_id BIGINT NULL,
+    leitura_atual_id BIGINT NOT NULL,
+    paginas BIGINT NOT NULL,
+    competencia CHAR(7) NOT NULL,
+    classificacao VARCHAR(32) NOT NULL,
+    criado_em DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    PRIMARY KEY (id),
+    UNIQUE KEY uq_consumos_contador_leitura_atual (leitura_atual_id),
+    KEY idx_consumos_contador_competencia (competencia, impressora)
+)
+"""
+CREATE_FECHAMENTOS_MENSAIS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS fechamentos_mensais (
+    impressora VARCHAR(255) NOT NULL,
+    competencia CHAR(7) NOT NULL,
+    paginas BIGINT NOT NULL,
+    intervalos_especiais INT NOT NULL DEFAULT 0,
+    fechado_em DATETIME(6) NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'fechado',
+    PRIMARY KEY (impressora, competencia)
+)
+"""
 ALTER_PRINTER_CONFIG_TOKEN_SQL = """
 ALTER TABLE printer_config
 ADD COLUMN token_tipo VARCHAR(32) NOT NULL DEFAULT 'pb' AFTER community
+"""
+ALTER_LEITURAS_CONTADOR_MAC_SQL = """
+ALTER TABLE leituras_contador
+ADD COLUMN mac VARCHAR(64) NULL AFTER impressora
 """
 
 
@@ -134,10 +177,191 @@ def inicializar_banco(caminho_banco):
             cursor.execute(CREATE_CACHE_IMPRESSORA_TABLE_SQL)
             cursor.execute(CREATE_PRINTER_CONFIG_TABLE_SQL)
             cursor.execute(CREATE_IMPRESSOES_USUARIOS_TABLE_SQL)
+            cursor.execute(CREATE_LEITURAS_CONTADOR_TABLE_SQL)
+            cursor.execute(CREATE_CONSUMOS_CONTADOR_TABLE_SQL)
+            cursor.execute(CREATE_FECHAMENTOS_MENSAIS_TABLE_SQL)
+            _garantir_coluna_mac_leituras_contador(cursor)
             _garantir_coluna_token_printer_config(cursor)
             if _printer_config_tem_coluna_token(cursor):
                 _migrar_tokens_antigos_para_printer_config(cursor)
         conexao.commit()
+
+
+# Registra uma leitura imutavel e o respectivo delta na mesma transacao.
+def registrar_leitura_contador(
+    caminho_banco,
+    impressora,
+    contador,
+    lido_em=None,
+    saldo_inicial=0,
+    mac=None,
+):
+    contador = int(contador)
+    saldo_inicial = max(int(saldo_inicial or 0), 0)
+    mac = str(mac or "").strip().upper() or None
+    if contador < 0:
+        raise ValueError("O contador da impressora nao pode ser negativo.")
+
+    instante = lido_em or datetime.now()
+    if isinstance(instante, str):
+        instante = datetime.fromisoformat(instante)
+    competencia = instante.strftime("%Y-%m")
+
+    with _obter_conexao(caminho_banco) as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute(
+                """
+                SELECT id, mac, contador, lido_em
+                FROM leituras_contador
+                WHERE impressora = %s
+                ORDER BY lido_em DESC, id DESC
+                LIMIT 1
+                FOR UPDATE
+                """,
+                (impressora,),
+            )
+            anterior = cursor.fetchone()
+
+            mac_anterior = str((anterior or {}).get("mac") or "").strip().upper() or None
+            mudou_equipamento = bool(mac and mac_anterior and mac != mac_anterior)
+
+            if anterior and int(anterior["contador"]) == contador and not mudou_equipamento and mac_anterior:
+                cursor.execute(
+                    """
+                    SELECT COALESCE(SUM(paginas), 0) AS total
+                    FROM consumos_contador
+                    WHERE impressora = %s AND competencia = %s
+                    """,
+                    (impressora, competencia),
+                )
+                return int((cursor.fetchone() or {}).get("total") or 0)
+
+            cursor.execute(
+                """
+                INSERT INTO leituras_contador (impressora, mac, contador, lido_em, status)
+                VALUES (%s, %s, %s, %s, 'valida')
+                """,
+                (impressora, mac, contador, instante),
+            )
+            leitura_atual_id = cursor.lastrowid
+
+            if anterior:
+                lido_em_anterior = anterior["lido_em"]
+                if isinstance(lido_em_anterior, str):
+                    lido_em_anterior = datetime.fromisoformat(lido_em_anterior)
+                competencia_anterior = lido_em_anterior.strftime("%Y-%m")
+                paginas, classificacao = calcular_delta_contador(
+                    anterior["contador"],
+                    contador,
+                    competencia_anterior != competencia,
+                    mudou_equipamento,
+                )
+                leitura_anterior_id = anterior["id"]
+            else:
+                paginas = saldo_inicial
+                classificacao = "migracao" if paginas else "inicial"
+                leitura_anterior_id = None
+
+            cursor.execute(
+                """
+                INSERT INTO consumos_contador (
+                    impressora, leitura_anterior_id, leitura_atual_id,
+                    paginas, competencia, classificacao
+                )
+                VALUES (%s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    impressora,
+                    leitura_anterior_id,
+                    leitura_atual_id,
+                    paginas,
+                    competencia,
+                    classificacao,
+                ),
+            )
+            if anterior and competencia_anterior != competencia:
+                cursor.execute(
+                    """
+                    INSERT INTO fechamentos_mensais (
+                        impressora, competencia, paginas,
+                        intervalos_especiais, fechado_em, status
+                    )
+                    SELECT %s, %s, COALESCE(SUM(paginas), 0),
+                           COALESCE(SUM(classificacao IN ('reset', 'virada_mes', 'troca_equipamento')), 0),
+                           %s, 'fechado'
+                    FROM consumos_contador
+                    WHERE impressora = %s AND competencia = %s
+                    ON DUPLICATE KEY UPDATE
+                        paginas = VALUES(paginas),
+                        intervalos_especiais = VALUES(intervalos_especiais),
+                        fechado_em = VALUES(fechado_em),
+                        status = VALUES(status)
+                    """,
+                    (
+                        impressora,
+                        competencia_anterior,
+                        instante,
+                        impressora,
+                        competencia_anterior,
+                    ),
+                )
+            cursor.execute(
+                """
+                SELECT COALESCE(SUM(paginas), 0) AS total
+                FROM consumos_contador
+                WHERE impressora = %s AND competencia = %s
+                """,
+                (impressora, competencia),
+            )
+            total_mes = int((cursor.fetchone() or {}).get("total") or 0)
+        conexao.commit()
+
+    return total_mes
+
+
+# Retorna os totais mensais auditaveis, calculados a partir dos deltas persistidos.
+def resumir_consumos_contador(caminho_banco, competencia=None):
+    filtro = "WHERE competencia = %s" if competencia else ""
+    parametros = (competencia,) if competencia else ()
+    with _obter_conexao(caminho_banco) as conexao:
+        with conexao.cursor() as cursor:
+            cursor.execute(
+                f"""
+                SELECT competencia, impressora, COALESCE(SUM(paginas), 0) AS total_paginas,
+                       SUM(classificacao IN ('reset', 'virada_mes', 'troca_equipamento')) AS intervalos_especiais
+                FROM consumos_contador
+                {filtro}
+                GROUP BY competencia, impressora
+                ORDER BY competencia, impressora
+                """,
+                parametros,
+            )
+            return cursor.fetchall()
+
+
+# Verifica se leituras antigas já possuem a identidade física da impressora
+def _leituras_contador_tem_coluna_mac(cursor):
+    cursor.execute(
+        """
+        SELECT COUNT(*) AS total
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = %s
+          AND TABLE_NAME = 'leituras_contador'
+          AND COLUMN_NAME = 'mac'
+        """,
+        (MARIADB_DATABASE,),
+    )
+    resultado = cursor.fetchone() or {}
+
+    return int(resultado.get("total") or 0) > 0
+
+
+# Adiciona o MAC às leituras em instalações que já possuem a tabela
+def _garantir_coluna_mac_leituras_contador(cursor):
+    if _leituras_contador_tem_coluna_mac(cursor):
+        return
+
+    cursor.execute(ALTER_LEITURAS_CONTADOR_MAC_SQL)
 
 
 # Verifica se a tabela de configuração já possui a coluna token_tipo
@@ -790,7 +1014,10 @@ def _montar_filtros_impressoes_usuarios(filtros):
         where.append("impressora = %s")
         parametros.append(filtros["impressora"])
     if filtros.get("porta"):
-        where.append("UPPER(TRIM(porta)) = UPPER(%s)")
+        where.append(
+            "REPLACE(UPPER(TRIM(porta)), 'PAPERCUT_', '') = "
+            "REPLACE(UPPER(TRIM(%s)), 'PAPERCUT_', '')"
+        )
         parametros.append(filtros["porta"])
     if filtros.get("data_inicio"):
         where.append("data_hora >= %s")

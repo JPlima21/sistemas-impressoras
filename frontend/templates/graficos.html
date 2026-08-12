@@ -5,36 +5,76 @@
     <meta name="system-version" content="{{ system_version }}">
     <title>Graficos de Impressao</title>
     <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/production-sidebar.css">
     <link rel="stylesheet" href="/static/css/graficos.css">
     <link rel="stylesheet" href="/static/css/tabelas.css">
     <link rel="stylesheet" href="/static/css/responsive.css">
 </head>
-<body>
+<body class="production-navigation">
+
+{% set active_page = "graficos" %}
+{% include "_production_sidebar.html" %}
 
 <div class="dashboard">
 
     <header>
         <h1>Graficos de Impressao</h1>
-        <nav class="top-nav" aria-label="Navegacao principal">
-            <a href="./" class="top-nav-link">Dashboard</a>
-            <a href="graficos" class="top-nav-link active" aria-current="page">Graficos</a>
-            <a href="configurações" class="top-nav-link">Configuracoes</a>
-        </nav>
     </header>
 
-    <section class="resumo-status">
-        <div class="card resumo-card resumo-total">
-            <span class="resumo-label">Total</span>
-            <strong class="resumo-valor" id="total-impressoras">0</strong>
+    <section class="charts-top-row">
+        <div class="charts-top-left">
+            <div class="resumo-status">
+                <div class="card resumo-card resumo-total">
+                    <span class="resumo-label">Total</span>
+                    <strong class="resumo-valor" id="total-impressoras">0</strong>
+                </div>
+                <div class="card resumo-card resumo-online">
+                    <span class="resumo-label">Online</span>
+                    <strong class="resumo-valor" id="total-online">0</strong>
+                </div>
+                <div class="card resumo-card resumo-offline">
+                    <span class="resumo-label">Offline</span>
+                    <strong class="resumo-valor" id="total-offline">0</strong>
+                </div>
+            </div>
+
+            <div class="resumo-geral" aria-label="Resumo geral do período selecionado">
+                <div class="card resumo-geral-card">
+                    <span class="resumo-label">Total geral</span>
+                    <strong class="resumo-geral-valor" id="resumo-total-geral">0</strong>
+                </div>
+                <div class="card resumo-geral-card">
+                    <span class="resumo-label">Cópias</span>
+                    <strong class="resumo-geral-valor" id="resumo-total-copias">0</strong>
+                </div>
+                <div class="card resumo-geral-card">
+                    <span class="resumo-label">Valor</span>
+                    <strong class="resumo-geral-valor" id="resumo-total-valor">R$ 0,00</strong>
+                </div>
+            </div>
         </div>
-        <div class="card resumo-card resumo-online">
-            <span class="resumo-label">Online</span>
-            <strong class="resumo-valor" id="total-online">0</strong>
-        </div>
-        <div class="card resumo-card resumo-offline">
-            <span class="resumo-label">Offline</span>
-            <strong class="resumo-valor" id="total-offline">0</strong>
-        </div>
+
+        <aside class="card card-cota-mensal" aria-labelledby="titulo-cota-mensal">
+            <h2 id="titulo-cota-mensal">Cota mensal</h2>
+            <div class="quota-item quota-pb" id="cota-pb-item">
+                <div class="quota-header">
+                    <span>Preto e branco</span>
+                    <strong id="cota-pb-valor">0 / 93.000</strong>
+                </div>
+                <progress id="cota-pb-progresso" max="93000" value="0" aria-label="Cota mensal de impressoes preto e branco"></progress>
+                <span class="quota-percentual" id="cota-pb-percentual">0%</span>
+                <strong class="quota-excedente" id="cota-pb-excedente" hidden></strong>
+            </div>
+            <div class="quota-item quota-colorida" id="cota-colorida-item">
+                <div class="quota-header">
+                    <span>Colorida</span>
+                    <strong id="cota-colorida-valor">0 / 1.000</strong>
+                </div>
+                <progress id="cota-colorida-progresso" max="1000" value="0" aria-label="Cota mensal de impressoes coloridas"></progress>
+                <span class="quota-percentual" id="cota-colorida-percentual">0%</span>
+                <strong class="quota-excedente" id="cota-colorida-excedente" hidden></strong>
+            </div>
+        </aside>
     </section>
 
     <section class="charts-page-layout">
@@ -42,12 +82,21 @@
             <div class="chart-tabs-header">
                 <div>
                     <h2>Impressoes por Impressora</h2>
-                    <p class="chart-view-subtitle">Alterne entre as abas para comparar leituras diarias e mensais</p>
+                    <p class="chart-view-subtitle">
+                        Alterne entre as abas para comparar leituras diarias e mensais
+                    </p>
                 </div>
+
                 <div class="chart-tabs-actions">
+                    <label class="chart-series-toggle" for="alternar-barra-copias">
+                        <input id="alternar-barra-copias" type="checkbox">
+                        <span>Copias</span>
+                    </label>
+
                     <button type="button" id="botao-relatorio-mensal" class="chart-report-button">
                         Imprimir relatorio mensal
                     </button>
+
                     <div class="chart-tabs" role="tablist" aria-label="Visualizacoes de impressoes">
                         <button
                             type="button"
@@ -149,6 +198,9 @@
             <div class="chart-view-header">
                 <div>
                     <h2>Impressoes por Usuario</h2>
+                    <h3 class="chart-beta-warning" role="alert">
+                        <strong>Aviso:</strong>Essa feature esta em desenvolvimento (pode não funcionar corretamente)
+                    </h3>
                     <p id="subtitulo-grafico-usuarios" class="chart-view-subtitle">Ranking mensal com base nos eventos do servidor de impressao</p>
                 </div>
                 <div class="chart-filter-actions">
@@ -206,6 +258,7 @@
                 </div>
                 <button type="button" class="user-jobs-close" aria-label="Fechar detalhes" data-printer-users-close>&times;</button>
             </div>
+            <p class="user-jobs-beta-alert" role="status"><strong>Funcionalidade em desenvolvimento:</strong> os dados apresentados podem sofrer ajustes.</p>
             <div class="user-jobs-filters">
                 <label class="user-jobs-period-control" for="filtro-modal-impressora-data-inicio">
                     <span>Data inicial</span>
@@ -248,6 +301,7 @@
                 </div>
                 <button type="button" class="user-jobs-close" aria-label="Fechar detalhes" data-user-jobs-close>&times;</button>
             </div>
+            <p class="user-jobs-beta-alert" role="status"><strong>Funcionalidade em desenvolvimento:</strong> os dados apresentados podem sofrer ajustes.</p>
             <div class="user-jobs-filters">
                 <label class="user-jobs-period-control" for="filtro-modal-usuario-data-inicio">
                     <span>Data inicial</span>
@@ -291,5 +345,6 @@
 
 <script src="/static/js/graficos.js"></script>
 
+<script src="/static/js/production-sidebar.js"></script>
 </body>
 </html>

@@ -14,12 +14,13 @@ from services.historico_service import (
     carregar_cache_rastreamento_diario,
     carregar_historico,
     carregar_rastreamento_mensal,
+    registrar_leitura_contador,
     salvar_cache_impressora,
     salvar_cache_rastreamento_diario,
     salvar_registro_historico,
     salvar_rastreamento_mensal,
 )
-from services.snmp_service import formatar_mac, snmp_get
+from services.snmp_service import criar_snmp_engine, formatar_mac, snmp_get, snmp_walk_pares
 
 ''' serviço principal de monitoramento das impressoras, 
 responsável por coletar os dados via SNMP, 
@@ -71,22 +72,32 @@ class PrinterMonitorService:
         for config in self.printer_configs:
             impressora_id = config["id"]
             self.resultado_global["impressoras"][impressora_id] = {"online": False}
-            cache_rastreamento = self._criar_cache_rastreamento_dia_inicial()
-            cache_rastreamento_persistido = self.cache_rastreamento_dia_persistido.get(impressora_id)
-            rastreamento_mensal = self._criar_rastreamento_mensal_inicial()
-            rastreamento_mensal_persistido = self.rastreamento_mes_persistido.get(impressora_id)
 
-            if cache_rastreamento_persistido:
-                cache_rastreamento.update(
-                    self._normalizar_cache_rastreamento_dia_persistido(cache_rastreamento_persistido)
+            for chave_rastreamento in (impressora_id, f"{impressora_id}__copias"):
+                cache_rastreamento = self._criar_cache_rastreamento_dia_inicial()
+                cache_rastreamento_persistido = self.cache_rastreamento_dia_persistido.get(
+                    chave_rastreamento
                 )
-            if rastreamento_mensal_persistido:
-                rastreamento_mensal.update(
-                    self._normalizar_rastreamento_mensal_persistido(rastreamento_mensal_persistido)
+                rastreamento_mensal = self._criar_rastreamento_mensal_inicial()
+                rastreamento_mensal_persistido = self.rastreamento_mes_persistido.get(
+                    chave_rastreamento
                 )
 
-            self.cache_rastreamento_dia[impressora_id] = cache_rastreamento
-            self.rastreamento_mes[impressora_id] = rastreamento_mensal
+                if cache_rastreamento_persistido:
+                    cache_rastreamento.update(
+                        self._normalizar_cache_rastreamento_dia_persistido(
+                            cache_rastreamento_persistido
+                        )
+                    )
+                if rastreamento_mensal_persistido:
+                    rastreamento_mensal.update(
+                        self._normalizar_rastreamento_mensal_persistido(
+                            rastreamento_mensal_persistido
+                        )
+                    )
+
+                self.cache_rastreamento_dia[chave_rastreamento] = cache_rastreamento
+                self.rastreamento_mes[chave_rastreamento] = rastreamento_mensal
  
     # cria o estado inicial para o cache do rastreamento diário
     def _criar_cache_rastreamento_dia_inicial(self):
@@ -207,18 +218,18 @@ class PrinterMonitorService:
         return (time.monotonic() - ultimo_instante) >= self.snmp_stable_refresh_interval
 
     # Busca ou reaproveita dados estáveis da impressora, como nome, modelo e MAC
-    def _obter_dados_estaveis_impressora(self, ip, community, nome_impressora):
+    def _obter_dados_estaveis_impressora(self, engine, ip, community, nome_impressora):
         cache_atual = dict(self.cache_impressoras.get(nome_impressora, {}))
 
         if self._deve_atualizar_dados_estaveis_snmp(nome_impressora):
             cache_atual.update(
                 {
-                    "nome": str(snmp_get(ip, community, SNMP_OIDS["nome"])),
-                    "modelo": str(snmp_get(ip, community, SNMP_OIDS["modelo"])),
-                    "num_serie": str(snmp_get(ip, community, SNMP_OIDS["serial"])),
-                    "asset_number": str(snmp_get(ip, community, SNMP_OIDS["asset_number"])),
-                    "location": str(snmp_get(ip, community, SNMP_OIDS["location"])),
-                    "mac": formatar_mac(snmp_get(ip, community, SNMP_OIDS["mac"])),
+                    "nome": str(snmp_get(engine, ip, community, SNMP_OIDS["nome"])),
+                    "modelo": str(snmp_get(engine, ip, community, SNMP_OIDS["modelo"])),
+                    "num_serie": str(snmp_get(engine, ip, community, SNMP_OIDS["serial"])),
+                    "asset_number": str(snmp_get(engine, ip, community, SNMP_OIDS["asset_number"])),
+                    "location": str(snmp_get(engine, ip, community, SNMP_OIDS["location"])),
+                    "mac": formatar_mac(snmp_get(engine, ip, community, SNMP_OIDS["mac"])),
                 }
             )
             self._ultima_atualizacao_snmp_estavel[nome_impressora] = time.monotonic()
@@ -450,9 +461,16 @@ class PrinterMonitorService:
     # devolve os dados atuais para /api
     def get_resultado(self):
         with self._lock:
+            tokens_por_impressora = {
+                config["id"]: config.get("token_tipo", "pb")
+                for config in self.printer_configs
+            }
             return {
                 "impressoras": {
-                    nome: dados.copy()
+                    nome: {
+                        **dados,
+                        "token_tipo": tokens_por_impressora.get(nome, "pb"),
+                    }
                     for nome, dados in self.resultado_global["impressoras"].items()
                 }
             }
@@ -468,6 +486,9 @@ class PrinterMonitorService:
                 dados_cache = self.cache_impressoras.get(impressora_id, {})
                 rastreamento_dia = self.cache_rastreamento_dia.get(impressora_id, {})
                 rastreamento_mes = self.rastreamento_mes.get(impressora_id, {})
+                chave_contador_copias = f"{impressora_id}__copias"
+                rastreamento_copias_dia = self.cache_rastreamento_dia.get(chave_contador_copias, {})
+                rastreamento_copias_mes = self.rastreamento_mes.get(chave_contador_copias, {})
                 impressoes_dia = int(
                     dados_atuais.get("impressoes_dia")
                     if dados_atuais.get("impressoes_dia") is not None
@@ -477,6 +498,16 @@ class PrinterMonitorService:
                     dados_atuais.get("impressoes_mes")
                     if dados_atuais.get("impressoes_mes") is not None
                     else self._obter_total_rastreamento_mensal(rastreamento_mes)
+                )
+                copias_dia = int(
+                    dados_atuais.get("copias_dia")
+                    if dados_atuais.get("copias_dia") is not None
+                    else self._obter_total_cache_rastreamento_dia(rastreamento_copias_dia)
+                )
+                copias_mes = int(
+                    dados_atuais.get("copias_mes")
+                    if dados_atuais.get("copias_mes") is not None
+                    else self._obter_total_rastreamento_mensal(rastreamento_copias_mes)
                 )
 
                 linhas.append(
@@ -491,6 +522,8 @@ class PrinterMonitorService:
                         "impressoes_dia": impressoes_dia,
                         "impressoes_mes": impressoes_mes,
                         "copias": int(dados_atuais.get("copias") or 0),
+                        "copias_dia": copias_dia,
+                        "copias_mes": copias_mes,
                         "scanner": dados_atuais.get("scanner"),
                         "toner": dados_atuais.get("toner"),
                         "location": dados_atuais.get("location") or dados_cache.get("location"),
@@ -628,7 +661,7 @@ class PrinterMonitorService:
 
             rastreamento["impressoes_inicio"] = impressoes_atuais
             rastreamento["impressoes_dia"] = 0
-            total = impressoes_atuais
+            total = 0
 
         rastreamento["impressoes_dia"] = total
 
@@ -723,7 +756,7 @@ class PrinterMonitorService:
 
             rastreamento["impressoes_inicio"] = impressoes_atuais
             rastreamento["impressoes_mes"] = 0
-            total = impressoes_atuais
+            total = 0
 
         rastreamento["impressoes_mes"] = total
         rastreamento["registrado_mes"] = True
@@ -748,9 +781,52 @@ class PrinterMonitorService:
             "erro": "Sem resposta SNMP",
         }
 
+    # Converte a leitura do suprimento para percentual, inclusive quando o equipamento retorna unidades
+    @staticmethod
+    def _calcular_percentual_toner(nivel, capacidade):
+        try:
+            nivel = int(nivel)
+        except (TypeError, ValueError):
+            return None
+
+        if nivel < 0:
+            return None
+
+        try:
+            capacidade = int(capacidade)
+        except (TypeError, ValueError):
+            capacidade = None
+
+        if capacidade is not None and capacidade > 0:
+            return max(0, min(100, round((nivel / capacidade) * 100)))
+
+        # Alguns modelos já fornecem diretamente o percentual neste OID.
+        return nivel if nivel <= 100 else None
+
+    # Soma os contadores da tabela Samsung por tipo de trabalho: 1=impressao e 2=copia.
+    @staticmethod
+    def _somar_contadores_samsung(linhas):
+        totais = {1: 0, 2: 0}
+        for tipo_trabalho, valor in linhas:
+            if tipo_trabalho in totais and int(valor) >= 0:
+                totais[tipo_trabalho] += int(valor)
+
+        return totais[1], totais[2]
+
+    # Lê a tabela proprietária usada pelas multifuncionais Samsung para impressão e cópia.
+    def _obter_contadores_samsung(self, engine, ip, community):
+        linhas = snmp_walk_pares(
+            engine,
+            ip,
+            community,
+            SNMP_OIDS["samsung_contador_tipo"],
+            SNMP_OIDS["samsung_contador_valor"],
+        )
+        return self._somar_contadores_samsung(linhas) if linhas else (None, None)
+
     # método que monitora a impressora e coleta os dados via SNMP
-    def _monitorar_impressora(self, ip, community, nome_impressora):
-        uptime = snmp_get(ip, community, SNMP_OIDS["uptime"])
+    def _monitorar_impressora(self, engine, ip, community, nome_impressora):
+        uptime = snmp_get(engine, ip, community, SNMP_OIDS["uptime"])
 
         if uptime is None:
             return self._montar_status_offline(nome_impressora, ip)
@@ -761,22 +837,57 @@ class PrinterMonitorService:
         hours = (seconds % 86400) // 3600
         minutes = (seconds % 3600) // 60
 
-        dados_estaveis = self._obter_dados_estaveis_impressora(ip, community, nome_impressora)
-        total_impressoes = snmp_get(ip, community, SNMP_OIDS["total_impressoes"])
-        impressoes = snmp_get(ip, community, SNMP_OIDS["impressoes"])
-        copias = snmp_get(ip, community, SNMP_OIDS["copias"])
-        toner = snmp_get(ip, community, SNMP_OIDS["toner"])
-        status = snmp_get(ip, community, SNMP_OIDS["status"])
-        scanner = snmp_get(ip, community, SNMP_OIDS["scanner"])
+        dados_estaveis = self._obter_dados_estaveis_impressora(engine, ip, community, nome_impressora)
+        total_impressoes = snmp_get(engine, ip, community, SNMP_OIDS["total_impressoes"])
+        impressoes = snmp_get(engine, ip, community, SNMP_OIDS["impressoes"])
+        copias = snmp_get(engine, ip, community, SNMP_OIDS["copias"])
+        toner_capacidade = snmp_get(engine, ip, community, SNMP_OIDS["toner_capacidade"])
+        toner = snmp_get(engine, ip, community, SNMP_OIDS["toner"])
+        status = snmp_get(engine, ip, community, SNMP_OIDS["status"])
+        scanner = snmp_get(engine, ip, community, SNMP_OIDS["scanner"])
 
-        toner = int(toner) if toner and int(toner) >= 0 else None
-        total_impressoes = int(total_impressoes) if total_impressoes else None
+        if "SAMSUNG" in dados_estaveis["modelo"].upper() and (impressoes is None or copias is None):
+            impressoes_samsung, copias_samsung = self._obter_contadores_samsung(
+                engine,
+                ip,
+                community,
+            )
+            impressoes = impressoes if impressoes is not None else impressoes_samsung
+            copias = copias if copias is not None else copias_samsung
+
+        toner = self._calcular_percentual_toner(toner, toner_capacidade)
+        total_impressoes = int(total_impressoes) if total_impressoes is not None else None
         impressoes = int(impressoes) if impressoes else None
         copias = int(copias) if copias else None
 
         with self._lock:
             impressoes_dia = self._calcular_impressoes_dia(nome_impressora, total_impressoes)
-            impressoes_mes = self._calcular_impressoes_mes(nome_impressora, total_impressoes)
+            impressoes_mes_legado = self._calcular_impressoes_mes(nome_impressora, total_impressoes)
+            impressoes_mes = (
+                registrar_leitura_contador(
+                    self.historico_storage,
+                    nome_impressora,
+                    total_impressoes,
+                    saldo_inicial=impressoes_mes_legado,
+                    mac=dados_estaveis["mac"],
+                )
+                if total_impressoes is not None
+                else impressoes_mes_legado
+            )
+            chave_contador_copias = f"{nome_impressora}__copias"
+            copias_dia = self._calcular_impressoes_dia(chave_contador_copias, copias)
+            copias_mes_legado = self._calcular_impressoes_mes(chave_contador_copias, copias)
+            copias_mes = (
+                registrar_leitura_contador(
+                    self.historico_storage,
+                    chave_contador_copias,
+                    copias,
+                    saldo_inicial=copias_mes_legado,
+                    mac=dados_estaveis["mac"],
+                )
+                if copias is not None
+                else copias_mes_legado
+            )
 
             self._persistir_cache_impressora(
                 nome_impressora,
@@ -804,6 +915,8 @@ class PrinterMonitorService:
             "total_impressoes": total_impressoes,
             "impressoes": impressoes,
             "copias": copias,
+            "copias_dia": copias_dia,
+            "copias_mes": copias_mes,
             "impressoes_dia": impressoes_dia,
             "impressoes_mes": impressoes_mes,
             "toner": f"{toner}%" if toner is not None else "N/A",
@@ -815,12 +928,18 @@ class PrinterMonitorService:
 
     # loop principal de monitoramento, que chama o método de coleta e atualiza o resultado global
     def _monitor_loop(self, ip, community, nome_impressora):
+        # Uma única engine SNMP por thread/impressora, reaproveitada em todos os
+        # ciclos: criar uma nova a cada leitura força o pysnmp a recarregar e
+        # recompilar as MIBs (pysmi/ply) repetidamente, o que é pesado de CPU e
+        # prende a GIL, deixando até as rotas HTTP simples lentas.
+        engine = criar_snmp_engine()
+
         while True:
             with self._lock:
                 if nome_impressora in self._impressoras_removidas:
                     return
             try:
-                dados = self._monitorar_impressora(ip, community, nome_impressora)
+                dados = self._monitorar_impressora(engine, ip, community, nome_impressora)
             except Exception as exc:
                 print(f"Erro no monitoramento de {nome_impressora}: {exc}")
                 print(traceback.format_exc())

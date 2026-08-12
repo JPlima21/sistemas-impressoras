@@ -6,14 +6,22 @@ from pysnmp.hlapi import (
     SnmpEngine,
     UdpTransportTarget,
     getCmd,
+    nextCmd,
 )
 
 
+# Cria um SnmpEngine dedicado a uma thread de monitoramento. Reaproveitar a
+# mesma instância entre chamadas evita que o pysnmp recarregue/recompile as
+# MIBs (via pysmi/ply) a cada leitura, o que é custoso e prende a GIL.
+def criar_snmp_engine():
+    return SnmpEngine()
+
+
 # Faz uma leitura SNMP simples para um OID específico de uma impressora
-def snmp_get(ip, community, oid, version=0, timeout=2):
+def snmp_get(engine, ip, community, oid, version=0, timeout=2):
     try:
         iterator = getCmd(
-            SnmpEngine(),
+            engine,
             CommunityData(community, mpModel=version),
             UdpTransportTarget((ip, 161), timeout=timeout, retries=3),
             ContextData(),
@@ -29,6 +37,30 @@ def snmp_get(ip, community, oid, version=0, timeout=2):
             return var_bind[1]
     except Exception:
         return None
+
+
+# Percorre duas colunas de uma mesma tabela SNMP e devolve seus valores pareados.
+def snmp_walk_pares(engine, ip, community, oid_chave, oid_valor, version=0, timeout=2):
+    linhas = []
+    try:
+        iterator = nextCmd(
+            engine,
+            CommunityData(community, mpModel=version),
+            UdpTransportTarget((ip, 161), timeout=timeout, retries=2),
+            ContextData(),
+            ObjectType(ObjectIdentity(oid_chave)),
+            ObjectType(ObjectIdentity(oid_valor)),
+            lexicographicMode=False,
+        )
+
+        for error_indication, error_status, _, var_binds in iterator:
+            if error_indication or error_status or len(var_binds) < 2:
+                break
+            linhas.append((int(var_binds[0][1]), int(var_binds[1][1])))
+    except Exception:
+        return []
+
+    return linhas
 
 
 # Converte o retorno bruto do MAC address SNMP para o formato XX:XX:XX:XX:XX:XX

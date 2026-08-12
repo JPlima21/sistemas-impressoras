@@ -17,6 +17,9 @@ const graficosState = {
     historicoDiario: new Map(),
     historicoDiarioCompleto: new Map(),
     historicoMensal: new Map(),
+    copiasDiarias: new Map(),
+    copiasMensais: new Map(),
+    consumosMensais: [],
     impressoesUsuarios: [],
     eventosImpressoesUsuarios: [],
     impressoesUsuariosPorMes: new Map(),
@@ -28,11 +31,15 @@ const graficosState = {
     periodoDetalhesImpressora: { inicio: "", fim: "" },
     periodoDetalhesUsuario: { inicio: "", fim: "" },
     periodoLinhaHistorico: "dia",
+    exibirCopias: false,
     datasSalvamentoPorData: new Map(),
     rotulosImpressoras: new Map(),
     abaAtiva: "painel-grafico-dia",
 };
 let resizeTimeoutId = null;
+let atualizacaoGraficosEmAndamento = false;
+let dataAtualFiltros = obterDataAtualIso();
+let mesAtualFiltros = obterMesAtualIso();
 
 function formatarNumero(valor) {
     return new Intl.NumberFormat("pt-BR").format(Number(valor || 0));
@@ -209,6 +216,8 @@ function normalizarImpressora(item) {
         total_impressoes: Number(item?.total_impressoes || 0),
         impressoes_dia: Number(item?.impressoes_dia || 0),
         impressoes_mes: Number(item?.impressoes_mes || 0),
+        copias_dia: Number(item?.copias_dia || 0),
+        copias_mes: Number(item?.copias_mes || 0),
         token_tipo: item?.token_tipo || "pb",
         token_valor: Number(item?.token_valor ?? obterValorPadraoToken(item?.token_tipo)),
     };
@@ -295,6 +304,62 @@ function atualizarResumo(impressoras) {
     if (totalEl) totalEl.innerText = total;
     if (onlineEl) onlineEl.innerText = online;
     if (offlineEl) offlineEl.innerText = offline;
+}
+
+function atualizarBarraCota(prefixo, total, limite, valorImpressao) {
+    const progresso = document.getElementById(`${prefixo}-progresso`);
+    const valor = document.getElementById(`${prefixo}-valor`);
+    const percentual = document.getElementById(`${prefixo}-percentual`);
+    const item = document.getElementById(`${prefixo}-item`);
+    const excedente = document.getElementById(`${prefixo}-excedente`);
+    const proporcao = limite ? total / limite : 0;
+    const valorExcedido = Math.max(total - limite, 0) * valorImpressao;
+
+    if (progresso) progresso.value = Math.min(total, limite);
+    if (valor) valor.innerText = `${formatarNumero(total)} / ${formatarNumero(limite)}`;
+    if (percentual) percentual.innerText = `${(proporcao * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`;
+    if (excedente) {
+        excedente.innerText = `Excedente: ${formatarMoeda(valorExcedido)}`;
+        excedente.hidden = valorExcedido <= 0;
+    }
+    if (item) {
+        item.classList.toggle("quota-atencao", proporcao >= 0.9 && proporcao <= 1);
+        item.classList.toggle("quota-excedida", proporcao > 1);
+    }
+}
+
+function calcularTotaisCotaMensal(impressoras) {
+    return impressoras.reduce(
+        (resultado, item) => {
+            const nomes = [item.id, item.nome]
+                .map((valor) => String(valor || "").trim().toUpperCase());
+            const colorida = nomes.includes("OKIPRESIDENCIA_COLOR");
+            const okiPretoBranco = nomes.some((nome) => nome.startsWith("OKI"))
+                || nomes.includes("PTR_OUVIDORIA");
+            const impressoesMes = Math.max(Number(item.impressoes_mes || 0), 0);
+
+            if (colorida) {
+                resultado.colorida += impressoesMes;
+            } else if (okiPretoBranco) {
+                resultado.pb += impressoesMes;
+            }
+
+            return resultado;
+        },
+        { pb: 0, colorida: 0 },
+    );
+}
+
+function atualizarCotasMensais(impressoras, mesSelecionado = obterMesAtualIso()) {
+    const titulo = document.getElementById("titulo-cota-mensal");
+    const totais = calcularTotaisCotaMensal(impressoras);
+
+    if (titulo) {
+        titulo.innerText = `Cota mensal - ${formatarMesIso(mesSelecionado)}`;
+    }
+
+    atualizarBarraCota("cota-pb", totais.pb, 93000, 0.04);
+    atualizarBarraCota("cota-colorida", totais.colorida, 1000, 0.5);
 }
 
 function obterIdentificadorImpressora(item) {
@@ -424,9 +489,16 @@ function renderizarGraficoColunas(hostId, tituloVazio, itens, campoValor, corPri
     const larguraMinima = Math.max(760, dados.length * 108);
     const { svg, largura, altura } = criarSvgBase(host, 460, larguraMinima);
     const area = { x: 72, y: 24, width: largura - 96, height: 250 };
-    const maxValue = Math.max(...dados.map((item) => Number(item[campoValor] || 0)), 0);
+    const campoSecundario = opcoes.campoSecundario;
+    const maxValue = Math.max(
+        ...dados.flatMap((item) => [
+            Number(item[campoValor] || 0),
+            campoSecundario ? Number(item[campoSecundario] || 0) : 0,
+        ]),
+        0,
+    );
     const passo = area.width / dados.length;
-    const larguraBarra = Math.min(42, passo * 0.55);
+    const larguraBarra = campoSecundario ? Math.min(30, passo * 0.32) : Math.min(42, passo * 0.55);
 
     desenharGradeY(svg, area, maxValue, 5);
 
@@ -444,9 +516,11 @@ function renderizarGraficoColunas(hostId, tituloVazio, itens, campoValor, corPri
         const alturaBarra = maxValue > 0 ? (valor / maxValue) * area.height : 0;
         const yBarra = area.y + area.height - alturaBarra;
         const fill = item.online === false ? "#64748b" : corPrimaria;
+        const xBarraPrincipal = campoSecundario ? xCentro - larguraBarra - 2 : xCentro - larguraBarra / 2;
+        const xRotuloPrincipal = xBarraPrincipal + larguraBarra / 2;
 
         const rect = document.createElementNS(SVG_NS, "rect");
-        rect.setAttribute("x", xCentro - larguraBarra / 2);
+        rect.setAttribute("x", xBarraPrincipal);
         rect.setAttribute("y", yBarra);
         rect.setAttribute("width", larguraBarra);
         rect.setAttribute("height", Math.max(alturaBarra, 2));
@@ -462,10 +536,36 @@ function renderizarGraficoColunas(hostId, tituloVazio, itens, campoValor, corPri
         vincularAcaoItemSvg(rect, item, opcoes);
         svg.appendChild(rect);
 
+        if (campoSecundario) {
+            const valorSecundario = Number(item[campoSecundario] || 0);
+            const alturaSecundaria = maxValue > 0 ? (valorSecundario / maxValue) * area.height : 0;
+            const ySecundaria = area.y + area.height - alturaSecundaria;
+            const barraSecundaria = document.createElementNS(SVG_NS, "rect");
+            barraSecundaria.setAttribute("x", xCentro + 2);
+            barraSecundaria.setAttribute("y", ySecundaria);
+            barraSecundaria.setAttribute("width", larguraBarra);
+            barraSecundaria.setAttribute("height", Math.max(alturaSecundaria, 2));
+            barraSecundaria.setAttribute("rx", "10");
+            barraSecundaria.setAttribute("class", "svg-bar");
+            barraSecundaria.setAttribute("fill", opcoes.corSecundaria || "#f59e0b");
+            adicionarTituloTooltip(
+                barraSecundaria,
+                `${item.nome}: ${formatarNumero(valorSecundario)} ${opcoes.rotuloSecundario || "Copias"}`,
+            );
+            svg.appendChild(barraSecundaria);
+            adicionarTextoSvg(
+                svg,
+                xCentro + larguraBarra / 2 + 2,
+                Math.max(ySecundaria - 8, 16),
+                formatarNumero(valorSecundario),
+                "svg-value-label",
+            );
+        }
+
         const yLabel = Math.max(yBarra - 22, 16);
         adicionarTextoSvg(
             svg,
-            xCentro,
+            xRotuloPrincipal,
             yLabel,
             formatarNumero(valor),
             "svg-value-label",
@@ -474,7 +574,7 @@ function renderizarGraficoColunas(hostId, tituloVazio, itens, campoValor, corPri
         if (opcoes.mostrarToken !== false) {
             adicionarTextoSvg(
                 svg,
-                xCentro,
+                xRotuloPrincipal,
                 yLabel + 14,
                 formatarMoeda(valorToken),
                 "svg-token-label",
@@ -519,6 +619,17 @@ function construirMapaHistoricoDiario(registros) {
     });
 
     return mapa;
+}
+
+function construirMapaCopiasDiarias(registros) {
+    const registrosCopias = registros
+        .filter((registro) => String(registro.impressora || "").endsWith("__copias"))
+        .map((registro) => ({
+            ...registro,
+            impressora: String(registro.impressora).replace(/__copias$/, ""),
+        }));
+
+    return construirMapaHistoricoDiario(registrosCopias);
 }
 
 function construirMapaDatasSalvamentoPorData(registros) {
@@ -608,6 +719,35 @@ function construirMapaHistoricoMensal(mapaHistoricoDiario) {
             const acumulado = mapaMensal.get(mes).get(impressora) ?? 0;
             mapaMensal.get(mes).set(impressora, acumulado + Number(valor || 0));
         });
+    });
+
+    return mapaMensal;
+}
+
+function construirMapaConsumosMensais(registros, fallback) {
+    const mapaMensal = new Map(fallback);
+
+    normalizarListaApi(registros).forEach((registro) => {
+        const mes = String(registro?.competencia || "").trim();
+        const impressora = String(registro?.impressora || "").trim();
+        if (!mes || !impressora) return;
+
+        if (!mapaMensal.has(mes)) mapaMensal.set(mes, new Map());
+        mapaMensal.get(mes).set(impressora, Number(registro?.total_paginas || 0));
+    });
+
+    return mapaMensal;
+}
+
+function construirMapaCopiasMensais(registros) {
+    const mapaMensal = new Map();
+
+    normalizarListaApi(registros).forEach((registro) => {
+        const mes = String(registro?.competencia || "").trim();
+        const impressora = String(registro?.impressora || "").trim();
+        if (!mes || !impressora) return;
+        if (!mapaMensal.has(mes)) mapaMensal.set(mes, new Map());
+        mapaMensal.get(mes).set(impressora, Number(registro?.total_copias || 0));
     });
 
     return mapaMensal;
@@ -755,6 +895,33 @@ function construirLinhaEventosMes(eventos, mesSelecionado) {
         return [dia, valoresDia];
     }));
 }
+function construirLinhaHistoricoDia(mapaHistoricoDiario, dataSelecionada) {
+    const valoresDia = mapaHistoricoDiario.get(dataSelecionada);
+
+    return valoresDia?.size
+        ? new Map([[dataSelecionada, new Map(valoresDia)]])
+        : new Map();
+}
+
+function construirLinhaHistoricoMes(mapaHistoricoDiario, mesSelecionado) {
+    const registrosMes = [...mapaHistoricoDiario.entries()]
+        .filter(([data]) => String(data).startsWith(mesSelecionado))
+        .sort(([dataA], [dataB]) => String(dataA).localeCompare(String(dataB)));
+    const acumulado = new Map();
+
+    return new Map(registrosMes.map(([data, valoresDia]) => {
+        const valoresAcumulados = new Map();
+
+        valoresDia.forEach((valor, impressora) => {
+            const total = (acumulado.get(impressora) || 0) + Number(valor || 0);
+            acumulado.set(impressora, total);
+            valoresAcumulados.set(impressora, total);
+        });
+
+        return [data, valoresAcumulados];
+    }));
+}
+
 
 
 function agruparMapaPorData(mapaDatas) {
@@ -914,6 +1081,13 @@ function obterItensHistoricos(mapaValores, campoValor) {
         nome: graficosState.rotulosImpressoras.get(id) || id,
         [campoValor]: Number(valor || 0),
     })).map(enriquecerItemComToken);
+}
+
+function adicionarCopiasHistoricas(itens, mapaCopias, campoCopias) {
+    return itens.map((item) => ({
+        ...item,
+        [campoCopias]: Number(mapaCopias?.get(item.id) || 0),
+    }));
 }
 
 function obterTokenImpressora(id) {
@@ -1079,6 +1253,24 @@ function montarLinhasRankingUsuarios(usuarios) {
     }).join("");
 }
 
+function montarLinhaCotaMensal(rotulo, utilizado, limite, valorExcedente) {
+    const percentual = limite ? (utilizado / limite) * 100 : 0;
+    const excedente = Math.max(utilizado - limite, 0);
+    const excedenteTexto = excedente > 0
+        ? `${formatarNumero(excedente)} (${formatarMoeda(valorExcedente)})`
+        : "0";
+
+    return `
+        <tr>
+            <td>${escaparHtml(rotulo)}</td>
+            <td class="number">${formatarNumero(utilizado)}</td>
+            <td class="number">${formatarNumero(limite)}</td>
+            <td class="number">${percentual.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</td>
+            <td class="number">${escaparHtml(excedenteTexto)}</td>
+        </tr>
+    `;
+}
+
 async function imprimirRelatorioMensal() {
     const mesSelecionado = document.getElementById("filtro-data-mes")?.value || obterMesAtualIso();
     const itens = obterItensRelatorioMensal(mesSelecionado);
@@ -1087,6 +1279,11 @@ async function imprimirRelatorioMensal() {
         (total, item) => total + Number(item.impressoes_mes || 0) * Number(item.token_valor || 0),
         0,
     );
+    const totaisCota = calcularTotaisCotaMensal(itens);
+    const linhasCotaMensal = [
+        montarLinhaCotaMensal("Preto e branco", totaisCota.pb, 93000, Math.max(totaisCota.pb - 93000, 0) * 0.04),
+        montarLinhaCotaMensal("Colorida", totaisCota.colorida, 1000, Math.max(totaisCota.colorida - 1000, 0) * 0.5),
+    ].join("");
     const emitidoEm = new Intl.DateTimeFormat("pt-BR", {
         dateStyle: "short",
         timeStyle: "short",
@@ -1159,6 +1356,11 @@ async function imprimirRelatorioMensal() {
                     <div class="kpi"><strong>${formatarNumero(itens.length)}</strong><span>Impressoras</span></div>
                     <div class="kpi"><strong>${formatarMoeda(valorTotalMes)}</strong><span>Valor total</span></div>
                 </div>
+                <h2>Cota mensal</h2>
+                <table>
+                    <thead><tr><th>Tipo</th><th class="number">Utilizado</th><th class="number">Cota</th><th class="number">Percentual</th><th class="number">Excedente</th></tr></thead>
+                    <tbody>${linhasCotaMensal}</tbody>
+                </table>
                 <h2>Resumo por impressora</h2>
                 <table>
                     <thead><tr><th>Impressora</th><th class="number">Valor unitario</th><th class="number">Total de impressoes no mes</th><th class="number">Valor total</th></tr></thead>
@@ -1197,12 +1399,23 @@ function atualizarSubtitulo(hostId, texto) {
     }
 }
 
+function atualizarResumoGeral(totais, copias) {
+    const totalGeralEl = document.getElementById("resumo-total-geral");
+    const copiasEl = document.getElementById("resumo-total-copias");
+    const valorEl = document.getElementById("resumo-total-valor");
+
+    if (totalGeralEl) totalGeralEl.innerText = formatarNumero(totais.impressoes);
+    if (copiasEl) copiasEl.innerText = formatarNumero(copias);
+    if (valorEl) valorEl.innerText = formatarMoeda(totais.valor);
+}
+
 function obterPainelGraficoAtivo() {
     return document.getElementById(graficosState.abaAtiva);
 }
 
 function alternarAbaGraficos(tabId) {
     graficosState.abaAtiva = tabId;
+    localStorage.setItem("graficos-aba-ativa", tabId);
 
     document.querySelectorAll(".chart-tab-button").forEach((botao) => {
         const ativo = botao.dataset.tabTarget === tabId;
@@ -1218,6 +1431,17 @@ function alternarAbaGraficos(tabId) {
 }
 
 function inicializarAbasGraficos() {
+    const abasPermitidas = [
+        "painel-grafico-mensal",
+        "painel-grafico-mes",
+    ];
+
+    const abaArmazenada = localStorage.getItem("graficos-aba-ativa");
+
+    if (abasPermitidas.includes(abaArmazenada)) {
+        graficosState.abaAtiva = abaArmazenada;
+    }
+
     const botoes = document.querySelectorAll(".chart-tab-button");
 
     botoes.forEach((botao) => {
@@ -1458,6 +1682,21 @@ function aplicarPeriodoDetalhesUsuario() {
     carregarDetalhesUsuario(graficosState.usuarioDetalhesAtual, periodo);
 }
 
+function obterValorImpressaoEvento(evento) {
+    const porta = String(evento.porta || "").trim().toUpperCase();
+    const nomeImpressora = String(evento.impressora || "").trim().toUpperCase();
+    const impressora = graficosState.impressoras.find((item) => {
+        const portaImpressora = `PAPERCUT_${item.ip || ""}`.toUpperCase();
+        const identificadores = [item.id, item.nome]
+            .map((valor) => String(valor || "").trim().toUpperCase());
+
+        return (porta && porta === portaImpressora)
+            || (nomeImpressora && identificadores.includes(nomeImpressora));
+    });
+
+    return Number(impressora?.token_valor ?? obterValorPadraoToken(impressora?.token_tipo));
+}
+
 function imprimirRelatorioIndividualUsuario() {
     const usuario = graficosState.usuarioDetalhesAtual;
     const periodo = graficosState.periodoDetalhesUsuario;
@@ -1468,6 +1707,10 @@ function imprimirRelatorioIndividualUsuario() {
     }
 
     const totalPaginas = eventos.reduce((total, evento) => total + Number(evento.paginas || 0), 0);
+    const gastoTotalUsuario = eventos.reduce(
+        (total, evento) => total + Number(evento.paginas || 0) * obterValorImpressaoEvento(evento),
+        0,
+    );
     const computadores = [...new Set(eventos.map((evento) => evento.computador).filter(Boolean))];
     const impressoras = [...new Set(eventos.map((evento) => evento.impressora).filter(Boolean))];
     const emitidoEm = new Intl.DateTimeFormat("pt-BR", {
@@ -1482,16 +1725,20 @@ function imprimirRelatorioIndividualUsuario() {
         return;
     }
 
-    const linhas = eventos.map((evento) => `
-        <tr>
-            <td>${escaparHtml(evento.data_hora)}</td>
-            <td>${escaparHtml(evento.computador || "-")}</td>
-            <td>${escaparHtml(evento.impressora || "-")}</td>
-            <td>${escaparHtml(evento.documento || "-")}</td>
-            <td class="number">${formatarNumero(evento.paginas)}</td>
-            <td>${escaparHtml(evento.job_id || "-")}</td>
-        </tr>
-    `).join("");
+    const linhas = eventos.map((evento) => {
+        const gasto = Number(evento.paginas || 0) * obterValorImpressaoEvento(evento);
+
+        return `
+            <tr>
+                <td>${escaparHtml(evento.data_hora)}</td>
+                <td>${escaparHtml(evento.computador || "-")}</td>
+                <td>${escaparHtml(evento.impressora || "-")}</td>
+                <td class="number">${formatarNumero(evento.paginas)}</td>
+                <td class="number">${formatarMoeda(gasto)}</td>
+                <td>${escaparHtml(evento.job_id || "-")}</td>
+            </tr>
+        `;
+    }).join("");
 
     janela.document.open();
     janela.document.write(`
@@ -1499,7 +1746,7 @@ function imprimirRelatorioIndividualUsuario() {
         <html lang="pt-br">
         <head>
             <meta charset="UTF-8">
-            <title>Relatorio individual - ${escaparHtml(usuario)}</title>
+            <title>Relatorio individual por usuario - ${escaparHtml(usuario)}</title>
             <style>
                 @page { size: A4 landscape; margin: 12mm; }
                 * { box-sizing: border-box; }
@@ -1510,7 +1757,7 @@ function imprimirRelatorioIndividualUsuario() {
                 p { margin: 4px 0; }
                 .subtitle, .meta, .details { color: #64748b; font-size: 11px; }
                 .meta { text-align: right; }
-                .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0; }
+                .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 16px 0; }
                 .kpi { border: 1px solid #cbd5e1; border-top: 3px solid #0ea5e9; padding: 11px; text-align: center; }
                 .kpi strong { display: block; font-size: 18px; }
                 .kpi span { color: #64748b; font-size: 9px; text-transform: uppercase; }
@@ -1527,7 +1774,7 @@ function imprimirRelatorioIndividualUsuario() {
         <body>
             <header>
                 <div>
-                    <h1>Relatorio individual de impressoes</h1>
+                    <h1>Relatorio individual por usuario</h1>
                     <p class="subtitle">Usuario: ${escaparHtml(usuario)}</p>
                 </div>
                 <div class="meta"><b>Periodo</b><br>${escaparHtml(formatarPeriodoDetalhesUsuario(periodo))}<br><br><b>Emitido em</b><br>${escaparHtml(emitidoEm)}</div>
@@ -1537,11 +1784,12 @@ function imprimirRelatorioIndividualUsuario() {
                 <div class="kpi"><strong>${formatarNumero(totalPaginas)}</strong><span>Paginas</span></div>
                 <div class="kpi"><strong>${formatarNumero(computadores.length)}</strong><span>Computadores</span></div>
                 <div class="kpi"><strong>${formatarNumero(impressoras.length)}</strong><span>Impressoras</span></div>
+                <div class="kpi"><strong>${formatarMoeda(gastoTotalUsuario)}</strong><span>Gasto total</span></div>
             </div>
             <p class="details"><b>Computadores:</b> ${escaparHtml(computadores.join(", ") || "Nao identificados")}<br><b>Impressoras:</b> ${escaparHtml(impressoras.join(", ") || "Nao identificadas")}</p>
             <h2>Jobs do periodo</h2>
             <table>
-                <thead><tr><th>Data/hora</th><th>Computador</th><th>Impressora</th><th>Documento</th><th class="number">Paginas</th><th>Job ID</th></tr></thead>
+                <thead><tr><th>Data/hora</th><th>Computador</th><th>Impressora</th><th class="number">Paginas</th><th class="number">Gasto</th><th>Job ID</th></tr></thead>
                 <tbody>${linhas}</tbody>
             </table>
             <div class="footer">Monitor de Impressoras | v${escaparHtml(versao)} | Relatorio individual por usuario</div>
@@ -1680,7 +1928,13 @@ async function carregarUsuariosImpressora(impressora, periodo) {
 }
 
 async function abrirPopupUsuariosImpressora(item) {
-    const impressora = graficosState.impressoras.find((registro) => registro.id === item.id) || item;
+    const impressoraCadastrada = graficosState.impressoras.find((registro) => registro.id === item.id) || {};
+    const campoTotal = graficosState.abaAtiva === "painel-grafico-dia" ? "impressoes_dia" : "impressoes_mes";
+    const impressora = {
+        ...impressoraCadastrada,
+        ...item,
+        impressoes_periodo: Number(item[campoTotal] || 0),
+    };
     const modal = document.getElementById("modal-usuarios-impressora");
     if (!modal || !impressora?.id) return;
 
@@ -1703,8 +1957,10 @@ function imprimirRelatorioImpressora() {
 
     const nomeImpressora = impressora.nome || impressora.id;
     const ipImpressora = dadosImpressora.ip || impressora.ip || "-";
-    const totalPaginas = usuarios.reduce((total, item) => total + Number(item.total_paginas || 0), 0);
+    const totalPaginasUsuarios = usuarios.reduce((total, item) => total + Number(item.total_paginas || 0), 0);
+    const totalPaginas = Number(impressora.impressoes_periodo ?? totalPaginasUsuarios);
     const totalTrabalhos = usuarios.reduce((total, item) => total + Number(item.total_trabalhos || 0), 0);
+    const gastoTotal = totalPaginas * Number(impressora.token_valor || 0);
     const emitidoEm = new Intl.DateTimeFormat("pt-BR", {
         dateStyle: "short",
         timeStyle: "short",
@@ -1717,15 +1973,21 @@ function imprimirRelatorioImpressora() {
         return;
     }
 
-    const linhas = usuarios.map((item) => `
-        <tr>
-            <td>${escaparHtml(item.usuario || "-")}</td>
-            <td class="number">${formatarNumero(item.total_trabalhos)}</td>
-            <td class="number">${formatarNumero(item.total_paginas)}</td>
-            <td>${escaparHtml(item.primeira_impressao || "-")}</td>
-            <td>${escaparHtml(item.ultima_impressao || "-")}</td>
-        </tr>
-    `).join("");
+    const linhas = usuarios.map((item) => {
+        const paginasUsuario = Number(item.total_paginas || 0);
+        const gastoIndividual = paginasUsuario * Number(impressora.token_valor || 0);
+
+        return `
+            <tr>
+                <td>${escaparHtml(item.usuario || "-")}</td>
+                <td class="number">${formatarNumero(item.total_trabalhos)}</td>
+                <td class="number">${formatarNumero(paginasUsuario)}</td>
+                <td class="number">${formatarMoeda(gastoIndividual)}</td>
+                <td>${escaparHtml(item.primeira_impressao || "-")}</td>
+                <td>${escaparHtml(item.ultima_impressao || "-")}</td>
+            </tr>
+        `;
+    }).join("");
 
     janela.document.open();
     janela.document.write(`
@@ -1733,7 +1995,7 @@ function imprimirRelatorioImpressora() {
         <html lang="pt-br">
         <head>
             <meta charset="UTF-8">
-            <title>Relatorio da impressora - ${escaparHtml(nomeImpressora)}</title>
+            <title>Relatorio individual por impressora - ${escaparHtml(nomeImpressora)}</title>
             <style>
                 @page { size: A4; margin: 15mm; }
                 * { box-sizing: border-box; }
@@ -1744,7 +2006,8 @@ function imprimirRelatorioImpressora() {
                 p { margin: 4px 0; }
                 .subtitle, .meta { color: #64748b; font-size: 11px; }
                 .meta { text-align: right; }
-                .kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 16px 0; }
+                .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 16px 0; }
+                .note { margin-top: 8px; color: #64748b; font-size: 9px; }
                 .kpi { border: 1px solid #cbd5e1; border-top: 3px solid #10b981; padding: 11px; text-align: center; }
                 .kpi strong { display: block; font-size: 18px; }
                 .kpi span { color: #64748b; font-size: 9px; text-transform: uppercase; }
@@ -1760,8 +2023,9 @@ function imprimirRelatorioImpressora() {
         <body>
             <header>
                 <div>
-                    <h1>Relatorio de impressoes por impressora</h1>
+                    <h1>Relatorio individual por impressora</h1>
                     <p class="subtitle">Impressora: ${escaparHtml(nomeImpressora)} | IP: ${escaparHtml(ipImpressora)}</p>
+                    <p class="subtitle">Valor por impressao: ${formatarMoeda(impressora.token_valor)}</p>
                 </div>
                 <div class="meta"><b>Periodo</b><br>${escaparHtml(formatarPeriodoDetalhesUsuario(periodo))}<br><br><b>Emitido em</b><br>${escaparHtml(emitidoEm)}</div>
             </header>
@@ -1769,12 +2033,14 @@ function imprimirRelatorioImpressora() {
                 <div class="kpi"><strong>${formatarNumero(usuarios.length)}</strong><span>Usuarios</span></div>
                 <div class="kpi"><strong>${formatarNumero(totalTrabalhos)}</strong><span>Trabalhos</span></div>
                 <div class="kpi"><strong>${formatarNumero(totalPaginas)}</strong><span>Paginas</span></div>
+                <div class="kpi"><strong>${formatarMoeda(gastoTotal)}</strong><span>Gasto</span></div>
             </div>
             <h2>Utilizacao por usuario</h2>
             <table>
-                <thead><tr><th>Usuario</th><th class="number">Trabalhos</th><th class="number">Paginas</th><th>Primeira impressao</th><th>Ultima impressao</th></tr></thead>
+                <thead><tr><th>Usuario</th><th class="number">Trabalhos</th><th class="number">Paginas</th><th class="number">Gasto individual</th><th>Primeira impressao</th><th>Ultima impressao</th></tr></thead>
                 <tbody>${linhas}</tbody>
             </table>
+            <p class="note">O gasto individual corresponde as paginas identificadas do usuario multiplicadas pelo valor por impressao.</p>
             <div class="footer">Monitor de Impressoras | v${escaparHtml(versao)} | Relatorio individual por impressora</div>
         </body>
         </html>
@@ -1835,12 +2101,30 @@ function renderizarGraficosPorPeriodo() {
 
     const itensDia = dataSelecionada === dataAtual
         ? graficosState.impressoras
-        : obterItensHistoricos(valoresDia, "impressoes_dia");
+        : adicionarCopiasHistoricas(
+            obterItensHistoricos(valoresDia, "impressoes_dia"),
+            graficosState.copiasDiarias.get(dataSelecionada),
+            "copias_dia",
+        );
     const itensMes = mesSelecionado === mesAtual
         ? graficosState.impressoras
-        : obterItensHistoricos(valoresMes, "impressoes_mes");
+        : adicionarCopiasHistoricas(
+            obterItensHistoricos(valoresMes, "impressoes_mes"),
+            graficosState.copiasMensais.get(mesSelecionado),
+            "copias_mes",
+        );
+    atualizarCotasMensais(itensMes, mesSelecionado);
     const totaisDia = calcularTotaisToken(itensDia, "impressoes_dia");
     const totaisMes = calcularTotaisToken(itensMes, "impressoes_mes");
+    const totalCopiasDia = itensDia.reduce((total, item) => total + Number(item.copias_dia || 0), 0);
+    const totalCopiasMes = itensMes.reduce((total, item) => total + Number(item.copias_mes || 0), 0);
+
+    if (graficosState.abaAtiva === "painel-grafico-mes") {
+        atualizarResumoGeral(totaisMes, totalCopiasMes);
+    } else {
+        atualizarResumoGeral(totaisDia, totalCopiasDia);
+    }
+
     const itensUsuarios = graficosState.impressoesUsuariosPorMes.get(mesUsuariosSelecionado)
         || (mesUsuariosSelecionado === obterMesAtualIso() ? graficosState.impressoesUsuarios : []);
     const usuariosFiltrados = filtrarUsuariosPorPesquisa(itensUsuarios, pesquisaUsuarios);
@@ -1849,11 +2133,11 @@ function renderizarGraficosPorPeriodo() {
 
     atualizarSubtitulo(
         "subtitulo-grafico-dia",
-        `Periodo: ${formatarDataIso(dataSelecionada)} | Total: ${formatarNumero(totaisDia.impressoes)} impressoes | Valor: ${formatarMoeda(totaisDia.valor)}`,
+        `Periodo: ${formatarDataIso(dataSelecionada)} | Total geral: ${formatarNumero(totaisDia.impressoes)}${graficosState.exibirCopias ? ` | Copias: ${formatarNumero(totalCopiasDia)}` : ""} | Valor: ${formatarMoeda(totaisDia.valor)}`,
     );
     atualizarSubtitulo(
         "subtitulo-grafico-mes",
-        `Periodo: ${formatarMesIso(mesSelecionado)} | Total: ${formatarNumero(totaisMes.impressoes)} impressoes | Valor: ${formatarMoeda(totaisMes.valor)}`,
+        `Periodo: ${formatarMesIso(mesSelecionado)} | Total geral: ${formatarNumero(totaisMes.impressoes)}${graficosState.exibirCopias ? ` | Copias: ${formatarNumero(totalCopiasMes)}` : ""} | Valor: ${formatarMoeda(totaisMes.valor)}`,
     );
     atualizarSubtitulo(
         "subtitulo-grafico-usuarios",
@@ -1867,7 +2151,12 @@ function renderizarGraficosPorPeriodo() {
             itensDia,
             "impressoes_dia",
             "#38bdf8",
-            { onItemClick: abrirPopupUsuariosImpressora },
+            {
+                onItemClick: abrirPopupUsuariosImpressora,
+                campoSecundario: graficosState.exibirCopias ? "copias_dia" : null,
+                rotuloSecundario: "Copias",
+                corSecundaria: "#f59e0b",
+            },
         );
     }
 
@@ -1878,14 +2167,19 @@ function renderizarGraficosPorPeriodo() {
             itensMes,
             "impressoes_mes",
             "#34d399",
-            { onItemClick: abrirPopupUsuariosImpressora },
+            {
+                onItemClick: abrirPopupUsuariosImpressora,
+                campoSecundario: graficosState.exibirCopias ? "copias_mes" : null,
+                rotuloSecundario: "Copias",
+                corSecundaria: "#f59e0b",
+            },
         );
     }
 
     const linhaModo = graficosState.periodoLinhaHistorico;
     const mapaLinha = linhaModo === "mes"
-        ? construirLinhaEventosMes(graficosState.eventosImpressoesUsuarios, mesLinhaSelecionado)
-        : construirLinhaEventosDia(graficosState.eventosImpressoesUsuarios, dataLinhaSelecionada);
+        ? construirLinhaHistoricoMes(graficosState.historicoDiarioCompleto, mesLinhaSelecionado)
+        : construirLinhaHistoricoDia(graficosState.historicoDiarioCompleto, dataLinhaSelecionada);
     const tituloLinha = document.getElementById("titulo-grafico-linha");
 
     if (tituloLinha) {
@@ -1895,18 +2189,18 @@ function renderizarGraficosPorPeriodo() {
     atualizarSubtitulo(
         "subtitulo-grafico-linha",
         linhaModo === "mes"
-            ? `Trajetoria acumulada durante ${formatarMesIso(mesLinhaSelecionado)} por impressora`
-            : `Evolucao acumulada em ${formatarDataIso(dataLinhaSelecionada)} por impressora`,
+            ? `Evolucao diaria acumulada durante ${formatarMesIso(mesLinhaSelecionado)} por impressora`
+            : `Total consolidado em ${formatarDataIso(dataLinhaSelecionada)} por impressora`,
     );
     renderizarGraficoLinhaHistorico(
         "grafico-linha-historico",
         mapaLinha,
         {
             tituloVazio: linhaModo === "mes"
-                ? "Nenhum evento de impressao disponivel para o mes selecionado."
-                : "Nenhum evento de impressao disponivel para o dia selecionado.",
-            formatarRotulo: linhaModo === "mes" ? ((valor) => String(valor).slice(8, 10)) : ((valor) => valor),
-            formatarTooltip: linhaModo === "mes" ? formatarDataIso : ((valor) => valor),
+                ? "Nenhum historico de impressao disponivel para o mes selecionado."
+                : "Nenhum total de impressao disponivel para o dia selecionado.",
+            formatarRotulo: linhaModo === "mes" ? ((valor) => String(valor).slice(8, 10)) : formatarDataIso,
+            formatarTooltip: formatarDataIso,
         },
     );
     renderizarGraficoUsuarios();
@@ -1980,8 +2274,8 @@ function inicializarFiltrosPeriodo() {
         ...[...graficosState.impressoesUsuariosPorMes.keys()],
     ]);
     const mesesUsuariosOrdenados = [...mesesUsuariosDisponiveis].sort().reverse();
-    const datasLinhaDisponiveis = obterDatasEventosImpressoes(graficosState.eventosImpressoesUsuarios);
-    const mesesLinhaDisponiveis = obterMesesEventosImpressoes(graficosState.eventosImpressoesUsuarios);
+    const datasLinhaDisponiveis = datasDisponiveis;
+    const mesesLinhaDisponiveis = mesesOrdenados;
 
     popularFiltroPeriodo("filtro-data-dia", datasDisponiveis, formatarDataFiltroHistorico, obterDataAtualIso());
     popularFiltroPeriodo("filtro-data-mes", mesesOrdenados, formatarMesIso, obterMesAtualIso());
@@ -2027,11 +2321,55 @@ function inicializarFiltrosPeriodo() {
     }
 
     const botaoRelatorioMensal = document.getElementById("botao-relatorio-mensal");
+    const alternarBarraCopias = document.getElementById("alternar-barra-copias");
+
+    if (alternarBarraCopias && !alternarBarraCopias.dataset.bound) {
+        const preferenciaCopias = localStorage.getItem("graficos-exibir-copias");
+        if (preferenciaCopias !== null) {
+            alternarBarraCopias.checked = preferenciaCopias === "true";
+        }
+        graficosState.exibirCopias = alternarBarraCopias.checked;
+        alternarBarraCopias.addEventListener("change", () => {
+            graficosState.exibirCopias = alternarBarraCopias.checked;
+            localStorage.setItem("graficos-exibir-copias", String(alternarBarraCopias.checked));
+            renderizarGraficosPorPeriodo();
+        });
+        alternarBarraCopias.dataset.bound = "true";
+    }
 
     if (botaoRelatorioMensal && !botaoRelatorioMensal.dataset.bound) {
         botaoRelatorioMensal.addEventListener("click", imprimirRelatorioMensal);
         botaoRelatorioMensal.dataset.bound = "true";
     }
+}
+
+function atualizarFiltrosNaMudancaPeriodo() {
+    const novaDataAtual = obterDataAtualIso();
+    const novoMesAtual = obterMesAtualIso();
+
+    if (novaDataAtual === dataAtualFiltros && novoMesAtual === mesAtualFiltros) {
+        return;
+    }
+
+    ["filtro-data-dia", "filtro-linha-dia"].forEach((selectId) => {
+        const select = document.getElementById(selectId);
+
+        if (select?.value === dataAtualFiltros) {
+            select.value = novaDataAtual;
+        }
+    });
+
+    ["filtro-data-mes", "filtro-usuarios-mes", "filtro-linha-mes"].forEach((selectId) => {
+        const select = document.getElementById(selectId);
+
+        if (select?.value === mesAtualFiltros) {
+            select.value = novoMesAtual;
+        }
+    });
+
+    dataAtualFiltros = novaDataAtual;
+    mesAtualFiltros = novoMesAtual;
+    inicializarFiltrosPeriodo();
 }
 
 function preencherTabelaHistorico(registros) {
@@ -2072,15 +2410,22 @@ async function carregarGraficos() {
         buscarJsonComFallback(["/api"]),
         buscarJsonComFallback(["/api/historico"]),
         buscarJsonComFallback(["/api/impressoes-usuarios?limite=1000", "/api/impressoes-usuarios/resumo"]),
+        buscarJsonComFallback(["/api/relatorios/mensal/impressoras"]),
     ]);
-    const [resImpressoras, resHistorico, resUsuarios] = resultadoImpressoras;
+    const [resImpressoras, resHistorico, resUsuarios, resConsumosMensais] = resultadoImpressoras;
     const payloadImpressoras = resImpressoras.status === "fulfilled" ? resImpressoras.value : [];
     const payloadHistorico = resHistorico.status === "fulfilled" ? resHistorico.value : [];
     const payloadUsuarios = resUsuarios.status === "fulfilled" ? resUsuarios.value : [];
+    const payloadConsumosMensais = resConsumosMensais.status === "fulfilled"
+        ? resConsumosMensais.value
+        : [];
     const impressoras = normalizarListaApi(payloadImpressoras, "impressoras")
         .map(normalizarImpressora)
         .filter((item) => item.id);
-    const historico = normalizarHistorico(normalizarListaApi(payloadHistorico, "historico"));
+    const historicoCompleto = normalizarHistorico(normalizarListaApi(payloadHistorico, "historico"));
+    const historico = historicoCompleto.filter(
+        (registro) => !registro.impressora.endsWith("__copias"),
+    );
     const usuariosNormalizados = normalizarListaApi(payloadUsuarios);
     const eventosUsuarios = usuariosNormalizados
         .map(normalizarImpressaoUsuario)
@@ -2091,6 +2436,7 @@ async function carregarGraficos() {
     const usuariosPorMes = construirResumoUsuariosPorMes(eventosUsuarios);
     const impressoesUsuarios = usuariosPorMes.get(obterMesAtualIso()) || resumoUsuariosFallback;
     const historicoDiario = construirMapaHistoricoDiario(historico);
+    const copiasDiarias = construirMapaCopiasDiarias(historicoCompleto);
     const datasSalvamentoPorData = construirMapaDatasSalvamentoPorData(historico);
     const rotulosImpressoras = construirMapaRotulosImpressoras(impressoras, historico);
     const historicoDiarioCompleto = construirMapaHistoricoDiarioCompleto(
@@ -2116,7 +2462,13 @@ async function carregarGraficos() {
     graficosState.datasSalvamentoPorData = datasSalvamentoPorData;
     graficosState.rotulosImpressoras = rotulosImpressoras;
     graficosState.historicoDiarioCompleto = historicoDiarioCompleto;
-    graficosState.historicoMensal = construirMapaHistoricoMensal(historicoDiarioCompleto);
+    graficosState.historicoMensal = construirMapaConsumosMensais(
+        payloadConsumosMensais,
+        construirMapaHistoricoMensal(historicoDiarioCompleto),
+    );
+    graficosState.copiasDiarias = copiasDiarias;
+    graficosState.copiasMensais = construirMapaCopiasMensais(payloadConsumosMensais);
+    graficosState.consumosMensais = payloadConsumosMensais;
     graficosState.impressoesUsuarios = impressoesUsuarios;
     graficosState.eventosImpressoesUsuarios = eventosUsuarios;
     graficosState.impressoesUsuariosPorMes = usuariosPorMes;
@@ -2148,9 +2500,55 @@ async function carregarGraficos() {
     }
 }
 
+async function atualizarGraficosEmTempoReal() {
+    if (document.hidden || atualizacaoGraficosEmAndamento) {
+        return;
+    }
+
+    atualizacaoGraficosEmAndamento = true;
+
+    try {
+        const payload = await buscarJsonComFallback(["/api"]);
+        const impressoras = normalizarListaApi(payload, "impressoras")
+            .map(normalizarImpressora)
+            .filter((item) => item.id);
+
+        graficosState.impressoras = impressoras;
+        graficosState.historicoDiarioCompleto = construirMapaHistoricoDiarioCompleto(
+            graficosState.historicoDiario,
+            impressoras,
+        );
+        graficosState.historicoMensal = construirMapaConsumosMensais(
+            graficosState.consumosMensais,
+            construirMapaHistoricoMensal(graficosState.historicoDiarioCompleto),
+        );
+        graficosState.rotulosImpressoras = construirMapaRotulosImpressoras(
+            impressoras,
+            graficosState.historico,
+        );
+
+        atualizarFiltrosNaMudancaPeriodo();
+        atualizarResumo(impressoras);
+        renderizarGraficosPorPeriodo();
+    } catch (error) {
+        console.error("Erro ao atualizar graficos em tempo real:", error);
+    } finally {
+        atualizacaoGraficosEmAndamento = false;
+    }
+}
+
+function iniciarAtualizacaoGraficos() {
+    window.setInterval(atualizarGraficosEmTempoReal, 10000);
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) {
+            atualizarGraficosEmTempoReal();
+        }
+    });
+}
+
 window.addEventListener("resize", () => {
     window.clearTimeout(resizeTimeoutId);
     resizeTimeoutId = window.setTimeout(renderizarGraficosPorPeriodo, 120);
 });
 
-carregarGraficos();
+carregarGraficos().finally(iniciarAtualizacaoGraficos);
