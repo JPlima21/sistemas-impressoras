@@ -824,6 +824,20 @@ class PrinterMonitorService:
         )
         return self._somar_contadores_samsung(linhas) if linhas else (None, None)
 
+    # Usa o contador total padrão nas Epson, que não respondem aos OIDs proprietários da OKI.
+    @staticmethod
+    def _aplicar_fallback_contadores_epson(modelo, nome, total_impressoes, impressoes, copias):
+        identificacao = f"{modelo or ''} {nome or ''}".upper()
+        if "EPSON" not in identificacao:
+            return impressoes, copias
+
+        if impressoes is None:
+            impressoes = total_impressoes
+        if copias is None:
+            copias = 0
+
+        return impressoes, copias
+
     # método que monitora a impressora e coleta os dados via SNMP
     def _monitorar_impressora(self, engine, ip, community, nome_impressora):
         uptime = snmp_get(engine, ip, community, SNMP_OIDS["uptime"])
@@ -855,10 +869,18 @@ class PrinterMonitorService:
             impressoes = impressoes if impressoes is not None else impressoes_samsung
             copias = copias if copias is not None else copias_samsung
 
+        impressoes, copias = self._aplicar_fallback_contadores_epson(
+            dados_estaveis["modelo"],
+            dados_estaveis["nome"],
+            total_impressoes,
+            impressoes,
+            copias,
+        )
+
         toner = self._calcular_percentual_toner(toner, toner_capacidade)
         total_impressoes = int(total_impressoes) if total_impressoes is not None else None
-        impressoes = int(impressoes) if impressoes else None
-        copias = int(copias) if copias else None
+        impressoes = int(impressoes) if impressoes is not None else None
+        copias = int(copias) if copias is not None else None
 
         with self._lock:
             impressoes_dia = self._calcular_impressoes_dia(nome_impressora, total_impressoes)

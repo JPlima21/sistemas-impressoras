@@ -6,3 +6,4 @@ __pycache__/
 .env
 historico_impressoes.db
 historico_impressoes.db-*
+enviar-impressoes.ps1

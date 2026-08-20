@@ -59,6 +59,44 @@ class SomarContadoresSamsungTest(unittest.TestCase):
         self.assertEqual(2709, copias)
 
 
+class FallbackContadoresEpsonTest(unittest.TestCase):
+    def test_usa_total_como_impressoes_e_zero_como_copias_quando_oids_nao_respondem(self):
+        impressoes, copias = PrinterMonitorService._aplicar_fallback_contadores_epson(
+            "EPSON WorkForce",
+            "EPSONIMPRENSA.OABCE",
+            3961,
+            None,
+            None,
+        )
+
+        self.assertEqual(3961, impressoes)
+        self.assertEqual(0, copias)
+
+    def test_preserva_contadores_especificos_quando_disponiveis(self):
+        impressoes, copias = PrinterMonitorService._aplicar_fallback_contadores_epson(
+            "EPSON WorkForce",
+            "EPSONIMPRENSA.OABCE",
+            3961,
+            3000,
+            961,
+        )
+
+        self.assertEqual(3000, impressoes)
+        self.assertEqual(961, copias)
+
+    def test_nao_altera_contadores_de_outros_fabricantes(self):
+        impressoes, copias = PrinterMonitorService._aplicar_fallback_contadores_epson(
+            "OKI MC873",
+            "OKI-CALLCENTER",
+            3961,
+            None,
+            None,
+        )
+
+        self.assertIsNone(impressoes)
+        self.assertIsNone(copias)
+
+
 class InicializarEstadoTest(unittest.TestCase):
     def test_restaura_rastreamento_persistido_do_contador_de_copias(self):
         service = PrinterMonitorService.__new__(PrinterMonitorService)
