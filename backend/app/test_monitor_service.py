@@ -161,6 +161,12 @@ class AlertasPrinterMibTest(unittest.TestCase):
             PrinterMonitorService._classificar_alerta_impressora(1, "Service Call 980"),
         )
 
+    def test_traduz_atolamento_de_documento_reportado_pelo_adf(self):
+        self.assertEqual(
+            ("atolamento_documento", "Atolamento de documento no alimentador"),
+            PrinterMonitorService._classificar_alerta_impressora(1, "Document Jam"),
+        )
+
     def test_descarta_evento_de_tampa_fechada(self):
         indice = (1, 41)
         linhas = [

@@ -935,6 +935,11 @@ class PrinterMonitorService:
         texto = str(descricao or "").strip()
         normalizado = texto.casefold()
 
+        if any(
+            termo in normalizado
+            for termo in ("document jam", "original jam", "adf jam")
+        ):
+            return "atolamento_documento", "Atolamento de documento no alimentador"
         if codigo == 8 or any(
             termo in normalizado
             for termo in ("paper jam", "media jam", "jammed", "atolamento")
