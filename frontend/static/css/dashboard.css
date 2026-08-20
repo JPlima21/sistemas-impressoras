@@ -1,9 +1,16 @@
 .dashboard-top-row {
     display: grid;
-    grid-template-columns: minmax(520px, 0.85fr) minmax(420px, 1fr);
-    gap: 104px;
+    grid-template-columns: minmax(440px, 0.9fr) minmax(0, 1.35fr);
+    gap: 16px;
     align-items: start;
     margin-bottom: 16px;
+}
+
+.dashboard-alerts {
+    display: grid;
+    grid-template-columns: minmax(220px, 0.82fr) minmax(280px, 1.18fr);
+    gap: 12px;
+    min-width: 0;
 }
 
 .dashboard-top-left {
@@ -474,7 +481,8 @@
     border-color: rgba(148, 163, 184, 0.16);
 }
 
-.toner-alert-card {
+.toner-alert-card,
+.problem-alert-card {
     align-self: start;
     height: 104px;
     min-height: 104px;
@@ -483,6 +491,12 @@
         linear-gradient(135deg, rgba(30, 41, 59, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%);
     border: 1px solid rgba(56, 189, 248, 0.18);
     box-shadow: 0 12px 26px rgba(2, 6, 23, 0.2);
+}
+
+.problem-alert-card {
+    border-color: rgba(248, 113, 113, 0.24);
+    background:
+        linear-gradient(135deg, rgba(45, 31, 45, 0.98) 0%, rgba(15, 23, 42, 0.98) 100%);
 }
 
 .toner-alert-header {
@@ -607,6 +621,118 @@
 
 .toner-alert-empty {
     grid-column: 1 / -1;
+    margin: 0;
+    padding: 3px 6px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.26);
+    color: #94a3b8;
+    font-size: 10px;
+    text-align: center;
+}
+
+.problem-alert-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 3px;
+}
+
+.problem-alert-eyebrow {
+    display: block;
+    margin-bottom: 1px;
+    color: #fca5a5;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.problem-alert-count {
+    min-width: 28px;
+    padding: 3px 7px;
+    border: 1px solid rgba(248, 113, 113, 0.28);
+    border-radius: 999px;
+    background: rgba(239, 68, 68, 0.16);
+    color: #fee2e2;
+    font-size: 13px;
+    line-height: 1;
+    text-align: center;
+}
+
+.problem-alert-summary {
+    margin-bottom: 3px;
+    color: #cbd5e1;
+    font-size: 10px;
+}
+
+.problem-alert-list {
+    display: grid;
+    gap: 4px;
+    max-height: 56px;
+    overflow-y: auto;
+    padding-right: 2px;
+}
+
+.problem-alert-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    min-height: 20px;
+    padding: 3px 6px;
+    border-left: 4px solid #94a3b8;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.32);
+}
+
+.problem-alert-printer {
+    min-width: 0;
+}
+
+.problem-alert-printer strong,
+.problem-alert-printer span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.problem-alert-printer strong {
+    color: #f8fafc;
+    font-size: 11px;
+    line-height: 1.05;
+}
+
+.problem-alert-printer span {
+    color: #cbd5e1;
+    font-size: 10px;
+}
+
+.problem-alert-badge {
+    padding: 2px 5px;
+    border-radius: 999px;
+    background: rgba(148, 163, 184, 0.12);
+    color: #e2e8f0;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.problem-alert-item.problem-critica {
+    border-left-color: #ef4444;
+    background: rgba(127, 29, 29, 0.3);
+}
+
+.problem-alert-item.problem-aviso {
+    border-left-color: #f97316;
+    background: rgba(124, 45, 18, 0.25);
+}
+
+.problem-alert-item.problem-informativa {
+    border-left-color: #38bdf8;
+}
+
+.problem-alert-empty {
     margin: 0;
     padding: 3px 6px;
     border-radius: 10px;

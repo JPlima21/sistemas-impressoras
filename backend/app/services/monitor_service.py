@@ -20,7 +20,13 @@ from services.historico_service import (
     salvar_registro_historico,
     salvar_rastreamento_mensal,
 )
-from services.snmp_service import criar_snmp_engine, formatar_mac, snmp_get, snmp_walk_pares
+from services.snmp_service import (
+    criar_snmp_engine,
+    formatar_mac,
+    snmp_get,
+    snmp_walk_pares,
+    snmp_walk_tabela,
+)
 
 ''' serviço principal de monitoramento das impressoras, 
 responsável por coletar os dados via SNMP, 
@@ -778,6 +784,7 @@ class PrinterMonitorService:
             "location": dados_cache.get("location") or "N/A",
             "uptime": dados_cache.get("uptime") or "N/A",
             "mac": dados_cache.get("mac") or "N/A",
+            "problemas": [],
             "erro": "Sem resposta SNMP",
         }
 
@@ -824,6 +831,138 @@ class PrinterMonitorService:
         )
         return self._somar_contadores_samsung(linhas) if linhas else (None, None)
 
+    @staticmethod
+    def _formatar_timeticks_alerta(valor):
+        try:
+            centesimos = max(int(valor), 0)
+        except (TypeError, ValueError):
+            return None
+
+        segundos = centesimos // 100
+        dias, segundos = divmod(segundos, 86400)
+        horas, segundos = divmod(segundos, 3600)
+        minutos, segundos = divmod(segundos, 60)
+        return f"{dias}d {horas:02d}:{minutos:02d}:{segundos:02d}"
+
+    @staticmethod
+    def _classificar_alerta_impressora(codigo, descricao):
+        texto = str(descricao or "").strip()
+        normalizado = texto.casefold()
+
+        if codigo == 8 or "paper jam" in normalizado or "atolamento" in normalizado:
+            return "atolamento_papel", "Atolamento de papel"
+        if codigo == 3 or "cover open" in normalizado or "door open" in normalizado:
+            return "tampa_aberta", "Tampa aberta"
+        if "no paper" in normalizado or "paper empty" in normalizado:
+            return "sem_papel", "Sem papel"
+        if "toner" in normalizado and ("low" in normalizado or "baixo" in normalizado):
+            return "toner_baixo", "Toner baixo"
+        if "toner" in normalizado and ("empty" in normalizado or "vazio" in normalizado):
+            return "toner_vazio", "Toner vazio"
+        if codigo == 9:
+            return "componente_ausente", texto or "Componente ausente"
+        if codigo in (13, 15, 17):
+            return "suprimento", texto or "Suprimento requer atencao"
+        if codigo in (22, 29, 30):
+            return "falha", texto or "Falha na impressora"
+
+        return "outro", texto or "Alerta da impressora"
+
+    @classmethod
+    def _normalizar_alertas_printer_mib(cls, linhas):
+        raiz = tuple(int(parte) for parte in SNMP_OIDS["alertas"].split("."))
+        colunas = {
+            1: "indice",
+            2: "severidade_codigo",
+            3: "treinamento_codigo",
+            4: "grupo_codigo",
+            5: "grupo_indice",
+            6: "localizacao",
+            7: "codigo",
+            8: "descricao_original",
+            9: "uptime_evento_ticks",
+        }
+        alertas_por_indice = {}
+
+        for oid, valor in linhas:
+            oid = tuple(int(parte) for parte in oid)
+            if oid[: len(raiz)] != raiz:
+                continue
+
+            sufixo = oid[len(raiz) :]
+            if len(sufixo) < 3 or sufixo[0] not in colunas:
+                continue
+
+            coluna, dispositivo, indice_alerta = sufixo[:3]
+            alerta = alertas_por_indice.setdefault(
+                (dispositivo, indice_alerta),
+                {
+                    "id": f"{dispositivo}-{indice_alerta}",
+                    "dispositivo_indice": dispositivo,
+                    "indice": indice_alerta,
+                },
+            )
+            chave = colunas[coluna]
+
+            if coluna == 8:
+                alerta[chave] = str(valor).strip()
+            else:
+                try:
+                    alerta[chave] = int(valor)
+                except (TypeError, ValueError):
+                    alerta[chave] = None
+
+        alertas = []
+        codigos_resolvidos = {4, 6, 7, 19, 20, 25, 27, 1801}
+
+        for alerta in alertas_por_indice.values():
+            codigo = alerta.get("codigo")
+            if codigo in codigos_resolvidos:
+                continue
+
+            descricao = alerta.get("descricao_original") or ""
+            tipo, mensagem = cls._classificar_alerta_impressora(codigo, descricao)
+            severidade_codigo = alerta.get("severidade_codigo")
+            severidade = (
+                "critica"
+                if severidade_codigo == 3
+                else "aviso"
+                if severidade_codigo in (4, 5)
+                else "informativa"
+            )
+
+            alerta.update(
+                {
+                    "codigo": codigo,
+                    "tipo": tipo,
+                    "mensagem": mensagem,
+                    "severidade": severidade,
+                    "uptime_evento": cls._formatar_timeticks_alerta(
+                        alerta.get("uptime_evento_ticks")
+                    ),
+                }
+            )
+            alertas.append(alerta)
+
+        prioridade = {"critica": 0, "aviso": 1, "informativa": 2}
+        return sorted(
+            alertas,
+            key=lambda alerta: (
+                prioridade.get(alerta["severidade"], 3),
+                alerta["mensagem"].casefold(),
+                alerta["indice"],
+            ),
+        )
+
+    def _obter_alertas_impressora(self, engine, ip, community):
+        linhas = snmp_walk_tabela(
+            engine,
+            ip,
+            community,
+            SNMP_OIDS["alertas"],
+        )
+        return self._normalizar_alertas_printer_mib(linhas)
+
     # Usa o contador total padrão nas Epson, que não respondem aos OIDs proprietários da OKI.
     @staticmethod
     def _aplicar_fallback_contadores_epson(modelo, nome, total_impressoes, impressoes, copias):
@@ -859,6 +998,7 @@ class PrinterMonitorService:
         toner = snmp_get(engine, ip, community, SNMP_OIDS["toner"])
         status = snmp_get(engine, ip, community, SNMP_OIDS["status"])
         scanner = snmp_get(engine, ip, community, SNMP_OIDS["scanner"])
+        problemas = self._obter_alertas_impressora(engine, ip, community)
 
         if "SAMSUNG" in dados_estaveis["modelo"].upper() and (impressoes is None or copias is None):
             impressoes_samsung, copias_samsung = self._obter_contadores_samsung(
@@ -943,6 +1083,7 @@ class PrinterMonitorService:
             "impressoes_mes": impressoes_mes,
             "toner": f"{toner}%" if toner is not None else "N/A",
             "status": str(status),
+            "problemas": problemas,
             "uptime": f"{days} Dias / {hours} Horas / {minutes} Minutos",
             "scanner": str(scanner),
             "mac": dados_estaveis["mac"],

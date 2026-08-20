@@ -31,6 +31,10 @@
     .toner-alert-list {
         max-height: none;
     }
+
+    .dashboard-alerts {
+        grid-template-columns: minmax(220px, 0.82fr) minmax(280px, 1.18fr);
+    }
 }
 
 @media (max-width: 768px) {
@@ -87,6 +91,20 @@
 
     .toner-alert-list {
         grid-template-columns: 1fr;
+    }
+
+    .dashboard-alerts {
+        grid-template-columns: 1fr;
+    }
+
+    .toner-alert-card,
+    .problem-alert-card {
+        height: auto;
+        min-height: 104px;
+    }
+
+    .problem-alert-list {
+        max-height: none;
     }
 }
 

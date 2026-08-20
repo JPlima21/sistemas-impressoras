@@ -283,6 +283,76 @@ function atualizarAlertasToner(impressoras) {
         .join("");
 }
 
+function obterAlertasProblemas(impressoras) {
+    const alertas = [];
+
+    for (const [impressoraId, dados] of Object.entries(impressoras)) {
+        const nome = formatarTituloImpressora(dados.nome || impressoraId);
+        const problemas = Array.isArray(dados.problemas) ? dados.problemas : [];
+
+        for (const problema of problemas) {
+            const severidade = ["critica", "aviso", "informativa"].includes(problema.severidade)
+                ? problema.severidade
+                : "informativa";
+
+            alertas.push({
+                id: `${impressoraId}-${problema.id || problema.indice || alertas.length}`,
+                nome,
+                mensagem: String(problema.mensagem || problema.descricao_original || "Alerta da impressora"),
+                severidade,
+                prioridade: severidade === "critica" ? 1 : severidade === "aviso" ? 2 : 3,
+            });
+        }
+    }
+
+    return alertas.sort((a, b) => {
+        if (a.prioridade !== b.prioridade) {
+            return a.prioridade - b.prioridade;
+        }
+
+        const porNome = a.nome.localeCompare(b.nome, "pt-BR");
+        return porNome || a.mensagem.localeCompare(b.mensagem, "pt-BR");
+    });
+}
+
+function atualizarAlertasProblemas(impressoras) {
+    const totalEl = document.getElementById("total-alertas-problemas");
+    const resumoEl = document.getElementById("resumo-alertas-problemas");
+    const listaEl = document.getElementById("lista-alertas-problemas");
+
+    if (!totalEl || !resumoEl || !listaEl) {
+        return;
+    }
+
+    const alertas = obterAlertasProblemas(impressoras);
+    const criticos = alertas.filter((alerta) => alerta.severidade === "critica").length;
+    const avisos = alertas.filter((alerta) => alerta.severidade === "aviso").length;
+
+    totalEl.innerText = alertas.length;
+    resumoEl.innerText = alertas.length
+        ? `${criticos} critico(s) | ${avisos} aviso(s)`
+        : "Nenhum problema ativo nas impressoras.";
+
+    if (!alertas.length) {
+        listaEl.innerHTML = `<p class="problem-alert-empty">Todas as impressoras estao sem erros reportados.</p>`;
+        return;
+    }
+
+    listaEl.innerHTML = alertas
+        .map((alerta) => `
+            <div class="problem-alert-item problem-${alerta.severidade}">
+                <div class="problem-alert-printer">
+                    <strong>${escaparHtml(alerta.nome)}</strong>
+                    <span>${escaparHtml(alerta.mensagem)}</span>
+                </div>
+                <span class="problem-alert-badge">
+                    ${alerta.severidade === "critica" ? "Critico" : alerta.severidade === "aviso" ? "Aviso" : "Info"}
+                </span>
+            </div>
+        `)
+        .join("");
+}
+
 function atualizarIndicadorToner(tonerEl, valor) {
     if (!tonerEl) {
         return;
@@ -429,6 +499,7 @@ async function atualizar() {
 
         atualizarResumo(impressoras);
         atualizarAlertasToner(impressoras);
+        atualizarAlertasProblemas(impressoras);
         sincronizarContainer(container, impressoras);
 
         for (const [nomeImpressora, dataImpressora] of Object.entries(impressoras)) {

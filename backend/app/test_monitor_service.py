@@ -97,6 +97,60 @@ class FallbackContadoresEpsonTest(unittest.TestCase):
         self.assertIsNone(copias)
 
 
+class AlertasPrinterMibTest(unittest.TestCase):
+    RAIZ = (1, 3, 6, 1, 2, 1, 43, 18, 1, 1)
+
+    def test_normaliza_tampa_aberta_reportada_pela_oki(self):
+        indice = (1, 36)
+        ticks = ((2 * 86400) + (18 * 3600) + (26 * 60) + 20) * 100 + 56
+        linhas = [
+            (self.RAIZ + (1,) + indice, 36),
+            (self.RAIZ + (2,) + indice, 3),
+            (self.RAIZ + (3,) + indice, 3),
+            (self.RAIZ + (4,) + indice, 1),
+            (self.RAIZ + (5,) + indice, -1),
+            (self.RAIZ + (6,) + indice, 40788),
+            (self.RAIZ + (7,) + indice, 1),
+            (self.RAIZ + (8,) + indice, "Cover Open"),
+            (self.RAIZ + (9,) + indice, ticks),
+        ]
+
+        alertas = PrinterMonitorService._normalizar_alertas_printer_mib(linhas)
+
+        self.assertEqual(1, len(alertas))
+        self.assertEqual("1-36", alertas[0]["id"])
+        self.assertEqual("critica", alertas[0]["severidade"])
+        self.assertEqual("tampa_aberta", alertas[0]["tipo"])
+        self.assertEqual("Tampa aberta", alertas[0]["mensagem"])
+        self.assertEqual("Cover Open", alertas[0]["descricao_original"])
+        self.assertEqual("2d 18:26:20", alertas[0]["uptime_evento"])
+
+    def test_identifica_atolamento_pelo_codigo_padrao(self):
+        indice = (1, 40)
+        linhas = [
+            (self.RAIZ + (1,) + indice, 40),
+            (self.RAIZ + (2,) + indice, 3),
+            (self.RAIZ + (7,) + indice, 8),
+            (self.RAIZ + (8,) + indice, ""),
+        ]
+
+        alertas = PrinterMonitorService._normalizar_alertas_printer_mib(linhas)
+
+        self.assertEqual("atolamento_papel", alertas[0]["tipo"])
+        self.assertEqual("Atolamento de papel", alertas[0]["mensagem"])
+
+    def test_descarta_evento_de_tampa_fechada(self):
+        indice = (1, 41)
+        linhas = [
+            (self.RAIZ + (1,) + indice, 41),
+            (self.RAIZ + (2,) + indice, 4),
+            (self.RAIZ + (7,) + indice, 4),
+            (self.RAIZ + (8,) + indice, "Cover Closed"),
+        ]
+
+        self.assertEqual([], PrinterMonitorService._normalizar_alertas_printer_mib(linhas))
+
+
 class InicializarEstadoTest(unittest.TestCase):
     def test_restaura_rastreamento_persistido_do_contador_de_copias(self):
         service = PrinterMonitorService.__new__(PrinterMonitorService)

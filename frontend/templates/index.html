@@ -37,19 +37,35 @@
             </div>
         </div>
 
-        <aside class="card toner-alert-card" aria-labelledby="titulo-alertas-toner">
-            <div class="toner-alert-header">
-                <div>
-                    <span class="toner-alert-eyebrow">Alertas de toner</span>
-                    <h2 id="titulo-alertas-toner" class="sr-only">Alertas de toner</h2>
+        <div class="dashboard-alerts">
+            <aside class="card toner-alert-card" aria-labelledby="titulo-alertas-toner">
+                <div class="toner-alert-header">
+                    <div>
+                        <span class="toner-alert-eyebrow">Alertas de toner</span>
+                        <h2 id="titulo-alertas-toner" class="sr-only">Alertas de toner</h2>
+                    </div>
+                    <strong class="toner-alert-count" id="total-alertas-toner">0</strong>
                 </div>
-                <strong class="toner-alert-count" id="total-alertas-toner">0</strong>
-            </div>
-            <div class="toner-alert-summary" id="resumo-alertas-toner">Aguardando leitura...</div>
-            <div class="toner-alert-list" id="lista-alertas-toner">
-                <p class="toner-alert-empty">Carregando niveis de toner...</p>
-            </div>
-        </aside>
+                <div class="toner-alert-summary" id="resumo-alertas-toner">Aguardando leitura...</div>
+                <div class="toner-alert-list" id="lista-alertas-toner">
+                    <p class="toner-alert-empty">Carregando niveis de toner...</p>
+                </div>
+            </aside>
+
+            <aside class="card problem-alert-card" aria-labelledby="titulo-alertas-problemas">
+                <div class="problem-alert-header">
+                    <div>
+                        <span class="problem-alert-eyebrow">Problemas ativos</span>
+                        <h2 id="titulo-alertas-problemas" class="sr-only">Problemas ativos</h2>
+                    </div>
+                    <strong class="problem-alert-count" id="total-alertas-problemas">0</strong>
+                </div>
+                <div class="problem-alert-summary" id="resumo-alertas-problemas">Aguardando leitura...</div>
+                <div class="problem-alert-list" id="lista-alertas-problemas">
+                    <p class="problem-alert-empty">Carregando problemas...</p>
+                </div>
+            </aside>
+        </div>
     </section>
 
     <div class="content" id="content-container">
