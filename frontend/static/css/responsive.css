@@ -33,7 +33,7 @@
     }
 
     .dashboard-alerts {
-        grid-template-columns: minmax(220px, 0.82fr) minmax(280px, 1.18fr);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }
 
