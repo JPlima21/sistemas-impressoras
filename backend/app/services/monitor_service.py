@@ -28,6 +28,92 @@ from services.snmp_service import (
     snmp_walk_tabela,
 )
 
+
+# Traducoes dos codigos de problema definidos por PrtAlertCodeTC (RFC 3805).
+# A descricao original do fabricante continua sendo enviada na API.
+ALERTAS_PRINTER_MIB_TRADUZIDOS = {
+    3: ("tampa_aberta", "Tampa aberta"),
+    5: ("trava_aberta", "Trava de segurança aberta"),
+    8: ("atolamento_papel", "Atolamento de papel"),
+    9: ("componente_ausente", "Componente ou bandeja ausente"),
+    10: ("vida_util", "Vida útil da unidade próxima do fim"),
+    11: ("vida_util", "Vida útil da unidade encerrada"),
+    12: ("unidade_quase_vazia", "Unidade ou suprimento quase vazio"),
+    13: ("unidade_vazia", "Unidade ou suprimento vazio"),
+    14: ("unidade_quase_cheia", "Unidade quase cheia"),
+    15: ("unidade_cheia", "Unidade cheia"),
+    16: ("limite_unidade", "Unidade proxima do limite"),
+    17: ("limite_unidade", "Limite da unidade atingido"),
+    18: ("unidade_aberta", "Unidade aberta"),
+    21: ("unidade_desligada", "Unidade desligada"),
+    22: ("unidade_offline", "Unidade fora de servico"),
+    26: ("unidade_removida", "Unidade removida"),
+    28: ("recurso_removido", "Recurso removido"),
+    29: ("falha_recuperavel", "Falha recuperável na unidade"),
+    30: ("falha_irrecuperavel", "Falha irrecuperável na unidade"),
+    31: ("erro_armazenamento", "Erro recuperável de armazenamento"),
+    32: ("erro_armazenamento", "Erro irrecuperável de armazenamento"),
+    33: ("falha_motor", "Falha no motor"),
+    34: ("memoria_insuficiente", "Memória insuficiente"),
+    35: ("temperatura", "Temperatura da unidade abaixo do normal"),
+    36: ("temperatura", "Temperatura da unidade acima do normal"),
+    37: ("falha_sincronismo", "Falha de sincronização da unidade"),
+    38: ("falha_termistor", "Falha no termistor da unidade"),
+    501: ("tampa_aberta", "Porta ou tampa aberta"),
+    504: ("impressora_desligada", "Impressora desligada"),
+    801: ("bandeja_ausente", "Bandeja de entrada ausente"),
+    807: ("papel_baixo", "Pouco papel na bandeja"),
+    808: ("sem_papel", "Bandeja sem papel"),
+    809: ("troca_papel", "Troca de papel solicitada"),
+    810: ("alimentacao_manual", "Alimentação manual de papel solicitada"),
+    811: ("falha_bandeja", "Falha no posicionamento da bandeja"),
+    812: ("falha_bandeja", "Falha na elevação da bandeja"),
+    813: ("papel_incompativel", "Não foi possível alimentar o tamanho de papel selecionado"),
+    901: ("bandeja_saida_ausente", "Bandeja de saída ausente"),
+    902: ("bandeja_saida_quase_cheia", "Bandeja de saída quase cheia"),
+    903: ("bandeja_saida_cheia", "Bandeja de saída cheia"),
+    904: ("falha_caixa_saida", "Falha ao selecionar a caixa de saída"),
+    1001: ("temperatura_fusor", "Temperatura do fusor abaixo do normal"),
+    1002: ("temperatura_fusor", "Temperatura do fusor acima do normal"),
+    1003: ("falha_fusor", "Falha de sincronização do fusor"),
+    1004: ("falha_fusor", "Falha no termistor do fusor"),
+    1005: ("ajuste_impressao", "Ajustando a qualidade de impressão"),
+    1101: ("toner_vazio", "Toner vazio"),
+    1102: ("tinta_vazia", "Tinta vazia"),
+    1103: ("fita_vazia", "Fita de impressão vazia"),
+    1104: ("toner_baixo", "Toner quase vazio"),
+    1105: ("tinta_baixa", "Tinta quase vazia"),
+    1106: ("fita_baixa", "Fita de impressão quase vazia"),
+    1107: ("residuo_quase_cheio", "Reservatório de toner residual quase cheio"),
+    1108: ("residuo_quase_cheio", "Reservatório de tinta residual quase cheio"),
+    1109: ("residuo_cheio", "Reservatório de toner residual cheio"),
+    1110: ("residuo_cheio", "Reservatório de tinta residual cheio"),
+    1111: ("vida_util_cilindro", "Cilindro próximo do fim da vida útil"),
+    1112: ("vida_util_cilindro", "Vida útil do cilindro encerrada"),
+    1113: ("revelador_baixo", "Revelador quase vazio"),
+    1114: ("revelador_vazio", "Revelador vazio"),
+    1115: ("cartucho_ausente", "Cartucho de toner ausente"),
+    1301: ("bandeja_percurso_ausente", "Bandeja do percurso do papel ausente"),
+    1302: ("bandeja_percurso_quase_cheia", "Bandeja do percurso do papel quase cheia"),
+    1303: ("bandeja_percurso_cheia", "Bandeja do percurso do papel cheia"),
+    1304: ("duplex_indisponivel", "Papel selecionado incompatível com impressão frente e verso"),
+    1502: ("memoria_reduzida", "Memória do interpretador reduzida"),
+    1504: ("cartucho_interpretador_removido", "Cartucho do interpretador removido"),
+    1506: ("recurso_interpretador_removido", "Recurso do interpretador removido"),
+    1507: ("recurso_indisponivel", "Recurso do interpretador indisponível"),
+    1509: ("pagina_complexa", "Página complexa demais para os recursos disponíveis"),
+}
+
+# Eventos normais ou de recuperacao que nao devem ocupar o card de problemas.
+CODIGOS_ALERTA_SEM_PROBLEMA = frozenset(
+    {
+        4, 6, 7, 19, 20, 23, 24, 25, 27,
+        502, 503, 505, 506, 507,
+        802, 803, 804, 805, 806,
+        1501, 1503, 1505, 1801,
+    }
+)
+
 ''' serviço principal de monitoramento das impressoras, 
 responsável por coletar os dados via SNMP, 
 calcular as impressões diárias e manter o histórico atualizado'''
@@ -849,22 +935,48 @@ class PrinterMonitorService:
         texto = str(descricao or "").strip()
         normalizado = texto.casefold()
 
-        if codigo == 8 or "paper jam" in normalizado or "atolamento" in normalizado:
+        if codigo == 8 or any(
+            termo in normalizado
+            for termo in ("paper jam", "media jam", "jammed", "atolamento")
+        ):
             return "atolamento_papel", "Atolamento de papel"
-        if codigo == 3 or "cover open" in normalizado or "door open" in normalizado:
+        if codigo in (3, 501) or any(
+            termo in normalizado
+            for termo in ("cover open", "door open", "tampa aberta", "porta aberta")
+        ):
             return "tampa_aberta", "Tampa aberta"
-        if "no paper" in normalizado or "paper empty" in normalizado:
+        if any(
+            termo in normalizado
+            for termo in ("no paper", "paper empty", "out of paper", "paper out", "sem papel")
+        ):
             return "sem_papel", "Sem papel"
-        if "toner" in normalizado and ("low" in normalizado or "baixo" in normalizado):
+        if "toner" in normalizado and any(
+            termo in normalizado for termo in ("low", "almost empty", "baixo")
+        ):
             return "toner_baixo", "Toner baixo"
-        if "toner" in normalizado and ("empty" in normalizado or "vazio" in normalizado):
+        if "toner" in normalizado and any(
+            termo in normalizado for termo in ("empty", "vazio")
+        ):
             return "toner_vazio", "Toner vazio"
-        if codigo == 9:
-            return "componente_ausente", texto or "Componente ausente"
-        if codigo in (13, 15, 17):
-            return "suprimento", texto or "Suprimento requer atencao"
-        if codigo in (22, 29, 30):
-            return "falha", texto or "Falha na impressora"
+        if "ink" in normalizado and any(
+            termo in normalizado for termo in ("low", "almost empty")
+        ):
+            return "tinta_baixa", "Tinta quase vazia"
+        if "ink" in normalizado and "empty" in normalizado:
+            return "tinta_vazia", "Tinta vazia"
+        if "output" in normalizado and "tray" in normalizado and "full" in normalizado:
+            return "bandeja_saida_cheia", "Bandeja de saída cheia"
+        if "waste toner" in normalizado and "full" in normalizado:
+            return "residuo_cheio", "Reservatório de toner residual cheio"
+        if any(
+            termo in normalizado
+            for termo in ("service call", "service required", "maintenance required")
+        ):
+            return "manutencao", "Manutenção técnica necessária"
+
+        traducao = ALERTAS_PRINTER_MIB_TRADUZIDOS.get(codigo)
+        if traducao:
+            return traducao
 
         return "outro", texto or "Alerta da impressora"
 
@@ -913,11 +1025,9 @@ class PrinterMonitorService:
                     alerta[chave] = None
 
         alertas = []
-        codigos_resolvidos = {4, 6, 7, 19, 20, 25, 27, 1801}
-
         for alerta in alertas_por_indice.values():
             codigo = alerta.get("codigo")
-            if codigo in codigos_resolvidos:
+            if codigo in CODIGOS_ALERTA_SEM_PROBLEMA:
                 continue
 
             descricao = alerta.get("descricao_original") or ""

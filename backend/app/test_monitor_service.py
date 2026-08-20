@@ -139,6 +139,28 @@ class AlertasPrinterMibTest(unittest.TestCase):
         self.assertEqual("atolamento_papel", alertas[0]["tipo"])
         self.assertEqual("Atolamento de papel", alertas[0]["mensagem"])
 
+    def test_traduz_codigos_padrao_de_diferentes_grupos(self):
+        casos = {
+            808: ("sem_papel", "Bandeja sem papel"),
+            903: ("bandeja_saida_cheia", "Bandeja de saída cheia"),
+            1002: ("temperatura_fusor", "Temperatura do fusor acima do normal"),
+            1109: ("residuo_cheio", "Reservatório de toner residual cheio"),
+            1509: ("pagina_complexa", "Página complexa demais para os recursos disponíveis"),
+        }
+
+        for codigo, esperado in casos.items():
+            with self.subTest(codigo=codigo):
+                self.assertEqual(
+                    esperado,
+                    PrinterMonitorService._classificar_alerta_impressora(codigo, ""),
+                )
+
+    def test_traduz_descricao_do_fabricante_com_codigo_generico(self):
+        self.assertEqual(
+            ("manutencao", "Manutenção técnica necessária"),
+            PrinterMonitorService._classificar_alerta_impressora(1, "Service Call 980"),
+        )
+
     def test_descarta_evento_de_tampa_fechada(self):
         indice = (1, 41)
         linhas = [
@@ -149,6 +171,22 @@ class AlertasPrinterMibTest(unittest.TestCase):
         ]
 
         self.assertEqual([], PrinterMonitorService._normalizar_alertas_printer_mib(linhas))
+
+    def test_descarta_outros_eventos_que_nao_representam_problema(self):
+        for codigo in (507, 802, 1503, 1801):
+            with self.subTest(codigo=codigo):
+                indice = (1, codigo)
+                linhas = [
+                    (self.RAIZ + (1,) + indice, codigo),
+                    (self.RAIZ + (2,) + indice, 4),
+                    (self.RAIZ + (7,) + indice, codigo),
+                    (self.RAIZ + (8,) + indice, "Evento normal"),
+                ]
+
+                self.assertEqual(
+                    [],
+                    PrinterMonitorService._normalizar_alertas_printer_mib(linhas),
+                )
 
 
 class InicializarEstadoTest(unittest.TestCase):
