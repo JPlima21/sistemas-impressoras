@@ -2,21 +2,30 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/static/js/theme.js"></script>
     <title>Monitor de Impressora</title>
     <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="/static/css/production-sidebar.css">
     <link rel="stylesheet" href="/static/css/dashboard.css">
     <link rel="stylesheet" href="/static/css/responsive.css">
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <link rel="stylesheet" href="/static/css/redesign.css">
 </head>
-<body class="production-navigation">
+<body class="production-navigation overview-page">
 
 {% set active_page = "dashboard" %}
 {% include "_production_sidebar.html" %}
 
 <div class="dashboard">
 
-    <header>
+    <header class="workspace-header">
+        <div class="workspace-heading">
+        <span class="workspace-eyebrow">PRINT / Visão geral</span>
         <h1>Monitor de Impressora</h1>
+        <p class="workspace-description">Acompanhe equipamentos, consumo e alertas de impressão.</p>
+        </div>
+        <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false">Tema escuro</button>
     </header>
 
     <section class="dashboard-top-row">
@@ -67,6 +76,8 @@
             </aside>
         </div>
     </section>
+
+    <div class="section-heading"><div><span class="section-kicker">EQUIPAMENTOS</span><h2>Parque de impressoras</h2></div><p>Leituras, recursos e detalhes de cada equipamento.</p></div>
 
     <div class="content" id="content-container">
         <p style="text-align: center; padding: 20px;">Carregando impressoras...</p>

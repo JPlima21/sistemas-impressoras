@@ -2,6 +2,8 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/static/js/theme.js"></script>
     <meta name="system-version" content="{{ system_version }}">
     <title>Graficos de Impressao</title>
     <link rel="stylesheet" href="/static/css/base.css">
@@ -9,16 +11,23 @@
     <link rel="stylesheet" href="/static/css/graficos.css">
     <link rel="stylesheet" href="/static/css/tabelas.css">
     <link rel="stylesheet" href="/static/css/responsive.css">
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <link rel="stylesheet" href="/static/css/redesign.css">
 </head>
-<body class="production-navigation">
+<body class="production-navigation analytics-page">
 
 {% set active_page = "graficos" %}
 {% include "_production_sidebar.html" %}
 
 <div class="dashboard">
 
-    <header>
+    <header class="workspace-header">
+        <div class="workspace-heading">
+        <span class="workspace-eyebrow">PRINT / Análise de impressão</span>
         <h1>Graficos de Impressao</h1>
+        <p class="workspace-description">Explore volumes, acompanhe cotas e consulte o histórico da operação.</p>
+        </div>
+        <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false">Tema escuro</button>
     </header>
 
     <section class="charts-top-row">

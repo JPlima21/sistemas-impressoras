@@ -1,8 +1,3 @@
-function obterCaminhoApp(caminho) {
-    const prefixo = window.location.pathname.startsWith("/print") ? "/print" : "";
-    return `${prefixo}${caminho}`;
-}
-
 // Cria a estrutura HTML para uma coluna de impressora, usando o nome da impressora para gerar IDs unicos para os elementos
 function criarColunaImpressora(nomeImpressora) {
     return `
@@ -17,13 +12,10 @@ function criarColunaImpressora(nomeImpressora) {
                 </div>
                 <details class="printer-image-dropdown">
                     <summary class="printer-image-dropdown-toggle">
-                        <span class="printer-image-dropdown-title">Imagem e informacoes</span>
+                        <span class="printer-image-dropdown-title">Informações</span>
                         <span class="printer-image-dropdown-hint">ver detalhes</span>
                     </summary>
                     <div class="printer-image-layout">
-                        <div class="printer-image">
-                            <img id="imagem_${nomeImpressora}" src="${obterCaminhoApp("/assets/printers/oki")}" alt="Impressora">
-                        </div>
                         <div class="printer-image-info">
                             <h3>Informacoes</h3>
                             <div class="info">
@@ -73,29 +65,6 @@ function criarColunaImpressora(nomeImpressora) {
             </div>
         </div>
     `;
-}
-
-function obterImagemPorModelo(modelo) {
-    const modeloNormalizado = String(modelo || "").toLowerCase();
-
-    if (modeloNormalizado.includes("epson")) {
-        return {
-            src: obterCaminhoApp("/assets/printers/epson"),
-            alt: "Impressora Epson",
-        };
-    }
-
-    if (modeloNormalizado.includes("oki")) {
-        return {
-            src: obterCaminhoApp("/assets/printers/oki"),
-            alt: "Impressora OKI",
-        };
-    }
-
-    return {
-        src: obterCaminhoApp("/assets/printers/oki"),
-        alt: "Impressora",
-    };
 }
 
 // Atualiza o status de uma impressora (online/offline) e ajusta a classe CSS para refletir a cor correta
@@ -396,7 +365,6 @@ function formatarTituloImpressora(valor, fallback = "Impressora") {
 // Preenche os campos de uma impressora especifica, usando "N/A" como fallback para dados ausentes
 function preencherCampos(nomeImpressora, dataImpressora) {
     const elements = {
-        imagem: document.getElementById(`imagem_${nomeImpressora}`),
         nome: document.getElementById(`nome_${nomeImpressora}`),
         ip: document.getElementById(`ip_${nomeImpressora}`),
         mac: document.getElementById(`mac_${nomeImpressora}`),
@@ -418,11 +386,6 @@ function preencherCampos(nomeImpressora, dataImpressora) {
         elements.nome.innerText = formatarTituloImpressora(
             dataImpressora.nome || nomeImpressora,
         );
-    }
-    if (elements.imagem) {
-        const imagem = obterImagemPorModelo(dataImpressora.modelo);
-        elements.imagem.src = imagem.src;
-        elements.imagem.alt = imagem.alt;
     }
     if (elements.ip) elements.ip.innerText = dataImpressora.ip || "N/A";
     if (elements.mac) elements.mac.innerText = dataImpressora.mac || "N/A";

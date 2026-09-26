@@ -1,129 +1,171 @@
 # Monitor de Impressoras
 
-> Plataforma web para monitoramento, auditoria e análise do parque de impressão.
+## 1. O que é o sistema
 
-![Versão](https://img.shields.io/badge/versão-1.1.0-38bdf8)
-![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
-![Flask](https://img.shields.io/badge/Flask-3-000000?logo=flask&logoColor=white)
-![MariaDB](https://img.shields.io/badge/MariaDB-persistência-003545?logo=mariadb&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-pronto-2496ED?logo=docker&logoColor=white)
+O **Monitor de Impressoras** é uma aplicação web para acompanhar impressoras em rede, consultar o volume de impressões e identificar problemas nos equipamentos. As informações são coletadas por SNMP e armazenadas no MariaDB para consulta de históricos e relatórios.
 
-## Sobre o sistema
+O sistema oferece:
 
-O **Monitor de Impressoras** centraliza informações operacionais e gerenciais de impressoras em rede. O sistema coleta dados dos equipamentos via SNMP, mantém históricos no MariaDB e relaciona eventos do servidor de impressão aos usuários responsáveis.
+- Monitoramento de equipamentos online e offline, níveis de toner e problemas ativos.
+- Consulta de IP, MAC, número de série, modelo, patrimônio, localização e tempo de atividade.
+- Contadores de impressões e cópias, com indicadores diários e mensais.
+- Gráficos, acompanhamento de cotas e estimativas de custo por tipo de impressão.
+- Auditoria de trabalhos e relatórios por impressora e usuário.
+- Cadastro e exclusão de impressoras pela interface.
+- Interface responsiva com temas claro e escuro e preferência salva no navegador.
 
-Com uma única interface, é possível acompanhar a disponibilidade dos equipamentos, volume de páginas, custos estimados, níveis de toner e utilização por usuário.
-
-## O que o sistema resolve
-
-- Centraliza o acompanhamento de todas as impressoras cadastradas.
-- Identifica rapidamente equipamentos online e offline.
-- Mostra alertas de toner para apoiar a manutenção preventiva.
-- Registra o volume diário e mensal de impressões.
-- Mantém histórico consolidado para auditoria.
-- Identifica quais usuários imprimiram em cada equipamento.
-- Estima custos com base no tipo de token configurado.
-- Facilita a análise por meio de gráficos e relatórios.
-
-## Principais recursos
-
-### Dashboard operacional
-
-Visão rápida do parque de impressão, com totais de equipamentos online e offline, dados técnicos, contadores e alertas de toner.
-
-### Monitoramento via SNMP
-
-Coleta automática de informações como nome, modelo, série, patrimônio, localização, endereço MAC, uptime, contadores, toner e status.
-
-### Gráficos e indicadores
-
-Comparação de impressões diárias e mensais por equipamento, evolução histórica e ranking de usuários por quantidade de páginas.
-
-### Auditoria de impressão
-
-Consulta dos trabalhos enviados pelo servidor de impressão, incluindo usuário, data e hora, computador, documento, páginas e impressora utilizada.
-
-### Cruzamento entre usuário e impressora
-
-Os eventos são associados ao equipamento pelo padrão de porta `PAPERCUT_<IP>`. Ao clicar em uma impressora no gráfico, o sistema apresenta os usuários, trabalhos e páginas do período selecionado.
-
-### Gestão de equipamentos
-
-Cadastro e exclusão de impressoras diretamente pela interface, com validação de IP, community SNMP, identificador e tipo de token.
-
-### Relatório mensal
-
-Geração de um resumo mensal por impressora, com volume produzido, classificação do token e custo estimado.
-
-## Telas disponíveis
-
-| Tela | Finalidade |
+| Tela | O que você encontra |
 |---|---|
-| **Dashboard** | Acompanhamento operacional e alertas |
-| **Gráficos** | Indicadores diários, mensais e por usuário |
-| **Auditoria** | Histórico consolidado das leituras |
-| **Configurações** | Cadastro e gerenciamento das impressoras |
+| Dashboard | Status, alertas, informações técnicas e contadores |
+| Gráficos | Comparações diárias e mensais, histórico, auditoria e relatórios |
+| Configurações | Cadastro de impressoras, inventário e status de recebimento de eventos |
 
-## Como os dados se relacionam
+Os contadores físicos são coletados diretamente das impressoras. Os dados por usuário dependem dos eventos enviados pelo servidor de impressão, associados ao equipamento pelo padrão de porta `PAPERCUT_<IP>`.
 
-```text
-Impressoras em rede
-        │
-        │ SNMP
-        ▼
-Monitor de Impressoras ─────► MariaDB
-        ▲                       │
-        │                       │ histórico e auditoria
-        │ eventos               ▼
-Servidor de impressão     Gráficos e relatórios
+Também existe um **preview com dados fictícios**, para conhecer a interface sem banco de dados ou impressoras na rede.
+
+### Imagens do sistema
+
+**Dashboard - tema claro**
+![Dashboard no tema claro](docs/img/Dashboard_tema_claro.png)
+
+**Dashboard — tema escuro**
+![Dashboard no tema escuro](docs/img/Dashboard_tema_escuro.png)
+
+**Graficos de impressão**
+![Graficos de impressão](docs/img/Grafico_tema_claro.png)
+
+## 2. Quais tecnologias são utilizadas
+
+| Tecnologia | Utilização |
+|---|---|
+| Python 3.11 | Backend e versão utilizada na imagem Docker |
+| Flask e Jinja2 | Rotas HTTP, API e renderização das páginas |
+| HTML, CSS e JavaScript | Interface, temas, filtros e interações, sem framework de frontend |
+| SVG | Renderização dos gráficos |
+| SNMP e PySNMP | Comunicação e coleta de informações das impressoras |
+| MariaDB e PyMySQL | Armazenamento e acesso aos cadastros, contadores e históricos |
+| Docker e Docker Compose | Construção da imagem e execução em contêiner |
+
+As versões das dependências estão em [requirements.txt](requirements.txt). A versão da aplicação está em [VERSION](VERSION).
+
+## 3. Como fazer a instalação
+
+### 3.1. Pré-requisitos
+
+Para usar equipamentos reais, você precisa de:
+
+- Git para obter o projeto.
+- Docker com Docker Compose disponível.
+- Um servidor MariaDB acessível pela aplicação, com banco e usuário configurados.
+- Acesso de rede às impressoras, com SNMP habilitado e a community correspondente.
+
+O [docker-compose.yml](docker-compose.yml) inicia **somente a aplicação**. Ele não cria um servidor MariaDB.
+
+### 3.2. Obter o projeto
+
+```bash
+git clone https://github.com/JPlima21/sistemas-impressoras.git
+cd sistemas-impressoras
 ```
 
-O contador físico é obtido por SNMP. Os eventos por usuário chegam do servidor de impressão e são relacionados ao IP cadastrado por meio da porta `PAPERCUT_<IP>`.
+Execute os próximos comandos na pasta que contém `docker-compose.yml` e `Dockerfile`.
 
-## Arquitetura
+### 3.3. Preparar o MariaDB
 
-- **Backend:** Python 3.11 e Flask.
-- **Monitoramento:** SNMP com coleta periódica em threads.
-- **Persistência:** MariaDB.
-- **Frontend:** HTML, CSS e JavaScript sem frameworks.
-- **Implantação:** Docker e Docker Compose.
+Crie um banco para o sistema e um usuário com acesso a ele. Esse usuário precisa poder consultar e gravar dados, além de criar e alterar tabelas.
 
-## Execução
+O banco deve existir antes da primeira inicialização. A aplicação cria suas tabelas automaticamente, incluindo `printer_config`, que armazena os cadastros das impressoras.
 
-Configure as variáveis de ambiente do MariaDB, da API e do monitoramento em um arquivo `.env`. Depois, execute:
+Verifique se o MariaDB aceita conexões provenientes do ambiente onde o contêiner será executado.
+
+### 3.4. Configurar o arquivo `.env`
+
+Crie um arquivo chamado `.env` na raiz do projeto, ao lado de `docker-compose.yml`, com este conteúdo de exemplo:
+
+```dotenv
+# Servidor MariaDB acessível pelo contêiner
+MARIADB_HOST=192.168.0.10
+MARIADB_PORT=3306
+MARIADB_USER=MonitorUser
+MARIADB_PASSWORD=substitua_pela_senha_do_banco
+MARIADB_DATABASE=monitor_impressoras
+
+# Autenticação HTTP Basic da API
+API_USER=admin
+API_PASSWORD=substitua_pela_senha_da_api
+
+# Horário de fechamento diário do histórico
+HISTORICO_FECHAMENTO_DIARIO=23:59
+
+# Origens adicionais permitidas, separadas por vírgula, se necessário
+CORS_ORIGINS=
+
+# Modo de depuração desativado
+FLASK_DEBUG=0
+```
+
+Substitua o endereço, o nome do banco e as credenciais pelos valores do seu ambiente. Dentro do contêiner, `localhost` aponta para o próprio contêiner; use um endereço do MariaDB acessível a partir dele.
+
+O Docker Compose lê o `.env` e repassa as variáveis declaradas no bloco `environment` à aplicação. O fuso horário está definido no `docker-compose.yml` como `America/Fortaleza`; ajuste esse campo se necessário.
+
+Quando `API_USER` e `API_PASSWORD` estão preenchidos, as rotas `/api` exigem autenticação HTTP Basic. Não versione o `.env` nem credenciais reais. Em produção, publique o acesso com HTTPS.
+
+Não é necessário definir `IMPRESSORAS_CONFIG_JSON`: o código atual não utiliza essa variável. As impressoras são cadastradas pela interface e persistidas no MariaDB.
+
+### 3.5. Iniciar a aplicação
 
 ```bash
 docker compose up -d --build
 ```
 
-A aplicação ficará disponível, por padrão, em:
+Confira o serviço e consulte os logs:
 
-```text
-http://localhost:8080
+```bash
+docker compose ps
+docker compose logs --tail=100 monitor-impressoras
 ```
 
-> Não versione arquivos `.env`, senhas, credenciais do banco ou communities SNMP reais.
+Acesse **http://localhost:8080** no computador que executa o Docker. De outro computador, use `http://IP_DO_SERVIDOR:8080`, desde que a porta esteja liberada na rede.
 
-## Versionamento
+Se o serviço não iniciar, confira nos logs o endereço do MariaDB, as credenciais, a existência do banco e as permissões do usuário.
 
-O projeto utiliza [Versionamento Semântico](https://semver.org/lang/pt-BR/) no formato `MAJOR.MINOR.PATCH`.
+### 3.6. Cadastrar as impressoras
 
-A versão deve permanecer sincronizada no arquivo `VERSION`, na interface e na tag Git do lançamento.
+Abra **Configurações** e informe o IP, a community SNMP e o tipo de token de impressão. O identificador interno é opcional: se ficar vazio, o sistema gera um automaticamente.
 
-Versão atual: **v1.1.0**
+Após o cadastro, acompanhe o equipamento no **Dashboard**. O nome e os demais dados técnicos serão preenchidos conforme as respostas SNMP.
 
-## Próximas evoluções
+Para exibir trabalhos por usuário, configure também o envio de eventos do servidor de impressão. O cadastro do equipamento, sozinho, não fornece esses eventos.
 
-- Comparação mensal entre contadores SNMP e eventos do servidor de impressão.
-- Indicadores executivos e comparação com o mês anterior.
-- Alertas automáticos de divergência de contadores.
-- Relatórios de custos por usuário e setor.
+### 3.7. Parar ou atualizar o serviço
 
-## Segurança
+Para parar os contêineres do projeto:
 
-A API oferece autenticação HTTP Basic opcional. Em produção, recomenda-se habilitar as credenciais, utilizar HTTPS e restringir o acesso de rede ao MariaDB e às impressoras.
+```bash
+docker compose down
+```
 
-## Licença e autoria
+Depois de atualizar os arquivos do projeto, reconstrua e inicie a aplicação:
 
-Defina os dados de autoria e a licença de distribuição antes de publicar o projeto externamente.
+```bash
+docker compose up -d --build
+```
+
+Os dados permanecem no MariaDB externo, que deve ter sua própria rotina de backup.
+
+### 3.8. Executar somente o preview
+
+Para avaliar a interface sem MariaDB ou SNMP, use [preview_app.py](preview_app.py), disponível nesta versão de trabalho. Esse modo requer Python e Flask; Docker não é necessário.
+
+Na pasta do projeto, execute:
+
+```bash
+python -m pip install Flask==3.1.3
+python preview_app.py
+```
+
+Acesse **http://localhost:8081** e mantenha o terminal aberto. Para encerrar, pressione **Ctrl+C**. O preview escuta apenas no computador local.
+
+Esse modo usa dados fictícios. Cadastros e exclusões ficam na memória e são descartados ao encerrar o processo. As credenciais e a configuração do banco no `.env` não são utilizadas pelo preview.
 

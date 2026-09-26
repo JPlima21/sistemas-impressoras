@@ -13,14 +13,15 @@ function configurarMenuLateralProducao() {
         collapseButton.setAttribute("aria-label", collapsed ? "Expandir menu lateral" : "Recolher menu lateral");
     };
 
-    const preferenciaRecolhimento = localStorage.getItem(storageKey);
-    const iniciarRecolhido = preferenciaRecolhimento === null || preferenciaRecolhimento === "true";
+    let preferenciaRecolhimento = null;
+    try { preferenciaRecolhimento = localStorage.getItem(storageKey); } catch (_) { /* Menu disponível sem armazenamento. */ }
+    const iniciarRecolhido = preferenciaRecolhimento === "true";
     atualizarEstadoRecolhido(iniciarRecolhido && window.innerWidth > 768);
 
     collapseButton.addEventListener("click", () => {
         const collapsed = !sidebar.classList.contains("collapsed");
         atualizarEstadoRecolhido(collapsed);
-        localStorage.setItem(storageKey, String(collapsed));
+        try { localStorage.setItem(storageKey, String(collapsed)); } catch (_) { /* Estado mantido nesta página. */ }
     });
 
     function fecharMenuMobile() {

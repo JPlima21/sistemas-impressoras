@@ -2,10 +2,10 @@ body {
     margin: 0;
     font-family: "Segoe UI", sans-serif;
     background:
-        radial-gradient(circle at top left, rgba(56, 189, 248, 0.08), transparent 28%),
-        radial-gradient(circle at top right, rgba(37, 99, 235, 0.08), transparent 24%),
-        #0f172a;
-    color: #e2e8f0;
+        radial-gradient(circle at top left, var(--accent-soft), transparent 28%),
+        radial-gradient(circle at top right, var(--accent-soft), transparent 24%),
+        var(--surface);
+    color: var(--text);
     line-height: 1.4;
 }
 
@@ -33,9 +33,9 @@ header {
 
 header h1 {
     margin: 0;
-    color: #f8fafc;
+    color: var(--text);
     letter-spacing: 0.02em;
-    text-shadow: 0 1px 0 rgba(15, 23, 42, 0.25);
+    text-shadow: 0 1px 0 var(--shadow);
 }
 
 .top-nav {
@@ -47,23 +47,23 @@ header h1 {
 
 /* Estilos para os links de navegação no topo */
 .top-nav-link {
-    color: #cbd5e1;
+    color: var(--text);
     text-decoration: none;
     padding: 8px 14px;
     border-radius: 999px;
-    background: rgba(30, 41, 59, 0.9);
-    border: 1px solid rgba(148, 163, 184, 0.14);
+    background: var(--surface);
+    border: 1px solid var(--border);
     transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
 }
 
 .top-nav-link:hover {
-    background: rgba(51, 65, 85, 0.95);
-    color: #f8fafc;
+    background: var(--surface-alt);
+    color: var(--text);
 }
 
 .top-nav-link.active {
-    color: #082f49;
-    background: linear-gradient(135deg, #67e8f9 0%, #38bdf8 100%);
+    color: var(--text);
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent) 100%);
     border-color: transparent;
     font-weight: 600;
 }
@@ -80,8 +80,8 @@ header h1 {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    box-shadow: 0 10px 24px rgba(2, 6, 23, 0.18);
+    border: 1px solid var(--border);
+    box-shadow: 0 10px 24px var(--shadow);
 }
 
 .resumo-label {
@@ -98,26 +98,26 @@ header h1 {
 
 .card.resumo-online {
     background:
-        linear-gradient(180deg, rgba(34, 197, 94, 0.34) 0%, rgba(30, 41, 59, 0.98) 58%),
-        #1e293b;
-    border-left: 4px solid #22c55e;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        linear-gradient(180deg, var(--success-soft) 0%, var(--surface) 58%),
+        var(--surface);
+    border-left: 4px solid var(--success);
+    box-shadow: inset 0 1px 0 var(--shadow);
 }
 
 .card.resumo-offline {
     background:
-        linear-gradient(180deg, rgba(239, 68, 68, 0.34) 0%, rgba(30, 41, 59, 0.98) 58%),
-        #1e293b;
-    border-left: 4px solid #ef4444;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        linear-gradient(180deg, var(--danger-soft) 0%, var(--surface) 58%),
+        var(--surface);
+    border-left: 4px solid var(--danger);
+    box-shadow: inset 0 1px 0 var(--shadow);
 }
 
 .card.resumo-total {
     background:
-        linear-gradient(180deg, rgba(56, 189, 248, 0.34) 0%, rgba(30, 41, 59, 0.98) 58%),
-        #1e293b;
-    border-left: 4px solid #38bdf8;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        linear-gradient(180deg, var(--accent-soft) 0%, var(--surface) 58%),
+        var(--surface);
+    border-left: 4px solid var(--accent-text);
+    box-shadow: inset 0 1px 0 var(--shadow);
 }
 
 /* STATUS */
@@ -126,16 +126,16 @@ header h1 {
     border-radius: 20px;
     font-weight: bold;
     letter-spacing: 0.04em;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+    box-shadow: inset 0 1px 0 var(--shadow);
 }
 
 .online {
-    background: #22c55e;
-    color: #022c22;
+    background: var(--success);
+    color: var(--success);
 }
 
 .offline {
-    background: #ef4444;
+    background: var(--danger);
 }
 
 /* CONTEUDO */
@@ -147,18 +147,18 @@ header h1 {
 
 /* CARD */
 .card {
-    background: #1e293b;
+    background: var(--surface);
     padding: 9px;
     border-radius: 10px;
-    box-shadow: 0 0 6px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 0 6px var(--shadow);
     font-size: 10px;
-    border: 1px solid rgba(148, 163, 184, 0.08);
+    border: 1px solid var(--border);
     transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .card:hover {
-    border-color: rgba(125, 211, 252, 0.18);
-    box-shadow: 0 14px 28px rgba(2, 6, 23, 0.24);
+    border-color: var(--border);
+    box-shadow: 0 14px 28px var(--shadow);
     transform: translateY(-1px);
 }
 
@@ -170,7 +170,7 @@ header h1 {
     gap: 8px;
     margin-top: 24px;
     padding: 16px 12px 4px;
-    color: #64748b;
+    color: var(--muted);
     font-size: 12px;
     letter-spacing: 0.02em;
 }
@@ -180,10 +180,10 @@ header h1 {
     align-items: center;
     min-height: 24px;
     padding: 2px 9px;
-    border: 1px solid rgba(56, 189, 248, 0.24);
+    border: 1px solid var(--border);
     border-radius: 999px;
-    background: rgba(30, 41, 59, 0.72);
-    color: #94a3b8;
+    background: var(--surface-alt);
+    color: var(--muted);
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
     font-size: 11px;
     font-weight: 600;

@@ -2,21 +2,30 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/static/js/theme.js"></script>
     <title>Configuracoes</title>
     <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="/static/css/production-sidebar.css">
     <link rel="stylesheet" href="/static/css/impressoras.css">
     <link rel="stylesheet" href="/static/css/responsive.css">
+    <link rel="stylesheet" href="/static/css/theme.css">
+    <link rel="stylesheet" href="/static/css/redesign.css">
 </head>
-<body class="production-navigation">
+<body class="production-navigation settings-page">
 
 {% set active_page = "configuracoes" %}
 {% include "_production_sidebar.html" %}
 
 <div class="dashboard">
 
-    <header>
+    <header class="workspace-header">
+        <div class="workspace-heading">
+        <span class="workspace-eyebrow">PRINT / Gestão de equipamentos</span>
         <h1>Configuracoes</h1>
+        <p class="workspace-description">Cadastre impressoras e acompanhe as configurações do monitoramento.</p>
+        </div>
+        <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false">Tema escuro</button>
     </header>
 
     <section class="resumo-status">

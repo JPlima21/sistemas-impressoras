@@ -7,23 +7,23 @@
 .management-card {
     padding: 16px;
     background:
-        linear-gradient(180deg, rgba(30, 41, 59, 0.98) 0%, rgba(22, 31, 48, 0.98) 100%);
+        linear-gradient(180deg, var(--surface) 0%, var(--surface) 100%);
 }
 
 .management-card h2 {
     margin: 0;
     font-size: 22px;
-    color: #f8fafc;
+    color: var(--text);
 }
 
 .management-card h3 {
     margin: 0;
     font-size: 18px;
-    color: #f8fafc;
+    color: var(--text);
 }
 
 .management-card p {
-    color: #a9b8cc;
+    color: var(--muted);
 }
 
 .printer-form {
@@ -44,7 +44,7 @@
 }
 
 .form-field label {
-    color: #d8e7f5;
+    color: var(--text);
     font-size: 12px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -52,10 +52,10 @@
 
 .form-field input,
 .form-field select {
-    border: 1px solid rgba(148, 163, 184, 0.22);
+    border: 1px solid var(--border);
     border-radius: 12px;
-    background: rgba(15, 23, 42, 0.9);
-    color: #f8fafc;
+    background: var(--surface);
+    color: var(--text);
     padding: 12px 14px;
     font-size: 14px;
     outline: none;
@@ -63,14 +63,14 @@
 
 .form-field input:focus,
 .form-field select:focus {
-    border-color: rgba(56, 189, 248, 0.7);
-    box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.18);
+    border-color: var(--accent-text);
+    box-shadow: 0 0 0 3px var(--shadow);
 }
 
 .form-help {
     margin: 0;
     font-size: 12px;
-    color: #94a3b8;
+    color: var(--muted);
 }
 
 .form-actions {
@@ -84,12 +84,12 @@
     border: none;
     border-radius: 999px;
     padding: 12px 18px;
-    background: linear-gradient(135deg, #38bdf8 0%, #2563eb 100%);
-    color: #f8fafc;
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent) 100%);
+    color: var(--text);
     font-size: 14px;
     font-weight: 700;
     cursor: pointer;
-    box-shadow: 0 10px 24px rgba(37, 99, 235, 0.24);
+    box-shadow: 0 10px 24px var(--shadow);
 }
 
 .button-primary:hover {
@@ -108,11 +108,11 @@
 }
 
 .form-feedback.is-error {
-    color: #fca5a5;
+    color: var(--danger);
 }
 
 .form-feedback.is-success {
-    color: #86efac;
+    color: var(--success);
 }
 
 .inventory-header {
@@ -132,9 +132,9 @@
 .inventory-card {
     padding: 14px;
     border-radius: 14px;
-    background: rgba(15, 23, 42, 0.36);
-    border: 1px solid rgba(148, 163, 184, 0.12);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
+    box-shadow: inset 0 1px 0 var(--shadow);
 }
 
 .inventory-card h3 {
@@ -154,8 +154,8 @@
     gap: 6px;
     padding: 6px 10px;
     border-radius: 999px;
-    background: rgba(51, 65, 85, 0.72);
-    color: #d8e7f5;
+    background: var(--surface-alt);
+    color: var(--text);
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.04em;
@@ -163,13 +163,13 @@
 }
 
 .inventory-badge.online {
-    background: rgba(34, 197, 94, 0.18);
-    color: #bbf7d0;
+    background: var(--success-soft);
+    color: var(--success);
 }
 
 .inventory-badge.offline {
-    background: rgba(239, 68, 68, 0.18);
-    color: #fecaca;
+    background: var(--danger-soft);
+    color: var(--danger);
 }
 
 .inventory-details {
@@ -181,13 +181,13 @@
     margin: 0;
     padding: 8px 10px;
     border-radius: 10px;
-    background: rgba(15, 23, 42, 0.28);
-    color: #d8e7f5;
+    background: var(--surface-alt);
+    color: var(--text);
     font-size: 13px;
 }
 
 .inventory-details strong {
-    color: #94a3b8;
+    color: var(--muted);
 }
 
 .inventory-actions {
@@ -197,11 +197,11 @@
 }
 
 .button-danger {
-    border: 1px solid rgba(248, 113, 113, 0.24);
+    border: 1px solid var(--danger-soft);
     border-radius: 999px;
     padding: 10px 14px;
-    background: rgba(127, 29, 29, 0.32);
-    color: #fecaca;
+    background: var(--danger-soft);
+    color: var(--danger);
     font-size: 13px;
     font-weight: 700;
     cursor: pointer;
@@ -209,9 +209,9 @@
 }
 
 .button-danger:hover {
-    background: rgba(153, 27, 27, 0.44);
-    border-color: rgba(248, 113, 113, 0.38);
-    color: #fee2e2;
+    background: var(--danger-soft);
+    border-color: var(--danger-soft);
+    color: var(--text);
 }
 
 .inventory-empty {
@@ -219,9 +219,9 @@
     padding: 18px;
     border-radius: 14px;
     text-align: center;
-    color: #94a3b8;
-    background: rgba(15, 23, 42, 0.28);
-    border: 1px dashed rgba(148, 163, 184, 0.2);
+    color: var(--muted);
+    background: var(--surface-alt);
+    border: 1px dashed var(--border);
 }
 
 
@@ -244,14 +244,14 @@
     min-width: 0;
     padding: 10px 12px;
     border-radius: 10px;
-    background: rgba(15, 23, 42, 0.34);
-    border: 1px solid rgba(148, 163, 184, 0.12);
+    background: var(--surface-alt);
+    border: 1px solid var(--border);
 }
 
 .script-status-item span {
     display: block;
     margin-bottom: 5px;
-    color: #94a3b8;
+    color: var(--muted);
     font-size: 10px;
     font-weight: 700;
     letter-spacing: 0.06em;
@@ -261,7 +261,7 @@
 .script-status-item strong {
     display: block;
     overflow-wrap: anywhere;
-    color: #e0f2fe;
+    color: var(--text);
     font-size: 13px;
     line-height: 1.35;
 }
