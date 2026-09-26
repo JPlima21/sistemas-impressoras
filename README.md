@@ -91,7 +91,7 @@ MARIADB_USER=MonitorUser
 MARIADB_PASSWORD=substitua_pela_senha_do_banco
 MARIADB_DATABASE=monitor_impressoras
 
-# Autenticação HTTP Basic da API
+# Autenticação HTTP Basic da API interna do proprio backend
 API_USER=admin
 API_PASSWORD=substitua_pela_senha_da_api
 
