@@ -2,15 +2,19 @@
     <button class="production-sidebar-toggle" id="production-sidebar-toggle" type="button" aria-label="Recolher menu lateral" aria-expanded="true">
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12.5 5-5 5 5 5"></path></svg>
     </button>
-    <a class="production-brand" href="/" aria-label="Monitor de Impressoras" title="Monitor de Impressoras">
-        <span class="production-brand-mark" aria-hidden="true">P</span>
+    <a class="production-brand" href="/" aria-label="Central de Monitoramento" title="Central de Monitoramento">
+        <span class="production-brand-mark" aria-hidden="true">M</span>
     </a>
     <nav class="production-sidebar-nav" aria-label="Navegação principal">
-        <a href="/" class="{% if active_page == 'dashboard' %}active{% endif %}" aria-label="Dashboard" title="Dashboard" {% if active_page == 'dashboard' %}aria-current="page"{% endif %}>
-            <svg class="production-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>
-            <span class="production-nav-tooltip" role="tooltip">Dashboard</span>
+        <a href="/rede" class="{% if active_page == 'rede' %}active{% endif %}" aria-label="Monitor de rede" title="Monitor de rede" {% if active_page == 'rede' %}aria-current="page"{% endif %}>
+            <svg class="production-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="2"></circle><circle cx="4" cy="5" r="2"></circle><circle cx="20" cy="5" r="2"></circle><circle cx="4" cy="19" r="2"></circle><circle cx="20" cy="19" r="2"></circle><path d="M10.5 10.5 5.5 6.5M13.5 10.5l5-4M10.5 13.5l-5 4m8-4 5 4"></path></svg>
+            <span class="production-nav-tooltip" role="tooltip">Monitor de rede</span>
         </a>
-        <a href="/graficos" class="{% if active_page == 'graficos' %}active{% endif %}" aria-label="Gráficos" title="Gráficos" {% if active_page == 'graficos' %}aria-current="page"{% endif %}>
+        <a href="/" class="{% if active_page == 'dashboard' %}active{% endif %}" aria-label="Monitor de impressoras" title="Monitor de impressoras" {% if active_page == 'dashboard' %}aria-current="page"{% endif %}>
+            <svg class="production-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg>
+            <span class="production-nav-tooltip" role="tooltip">Impressoras</span>
+        </a>
+        <a href="/graficos" class="{% if active_page == 'graficos' %}active{% endif %}" aria-label="Gráficos de impressão" title="Gráficos de impressão" {% if active_page == 'graficos' %}aria-current="page"{% endif %}>
             <svg class="production-nav-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10"></path><path d="M10 20V4"></path><path d="M16 20v-7"></path><path d="M22 20H2"></path></svg>
             <span class="production-nav-tooltip" role="tooltip">Gráficos</span>
         </a>

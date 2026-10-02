@@ -1,0 +1,16 @@
+.production-navigation .page-shell {
+    margin-left: var(--production-sidebar-width);
+    transition: margin-left 0.25s ease;
+}
+
+.production-sidebar.collapsed ~ .page-shell {
+    margin-left: var(--production-sidebar-collapsed-width);
+}
+
+@media (max-width: 768px) {
+    .production-navigation .page-shell,
+    .production-sidebar.collapsed ~ .page-shell {
+        margin-left: 0;
+        padding-top: 54px;
+    }
+}

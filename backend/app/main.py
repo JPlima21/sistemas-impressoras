@@ -14,6 +14,7 @@ from routes.web import create_web_blueprint
 from services.historico_service import inicializar_banco
 from services.monitor_service import PrinterMonitorService
 from services.printer_config_service import PrinterConfigService
+from routes.network import create_network_blueprint, create_network_monitor
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -36,7 +37,7 @@ def _resposta_auth_requerida():
     return Response(
         "Autenticacao requerida.",
         401,
-        {"WWW-Authenticate": 'Basic realm="Monitor de Impressoras"'},
+        {"WWW-Authenticate": 'Basic realm="Monitoramento"'},
     )
 
 
@@ -70,7 +71,7 @@ def _registrar_cors(app):
 
         response.headers["Access-Control-Allow-Origin"] = origem_permitida
         response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
         response.headers.add("Vary", "Origin")
         return response
@@ -80,9 +81,6 @@ def _registrar_autenticacao_basica(app):
     @app.before_request
     def exigir_autenticacao_basica():
         if request.method == "OPTIONS":
-            return None
-
-        if not request.path.startswith("/api"):
             return None
 
         if request.endpoint == "static" or not _auth_configurada():
@@ -125,6 +123,7 @@ def create_app():
         return {"system_version": system_version}
 
     _registrar_cors(app)
+    _registrar_autenticacao_basica(app)
     armazenamento_mariadb = None
     inicializar_banco(armazenamento_mariadb)
     printer_config_service = PrinterConfigService(armazenamento_mariadb)
@@ -137,10 +136,15 @@ def create_app():
         daily_close_time=HISTORICO_FECHAMENTO_DIARIO,
     )
     monitor_service.start()
+    network_storage, network_audit, network_monitor = create_network_monitor()
+    if network_monitor is not None:
+        network_monitor.start()
+    app.extensions["network_monitor"] = network_monitor
 
 
 
     app.register_blueprint(create_api_blueprint(monitor_service, printer_config_service))
+    app.register_blueprint(create_network_blueprint(network_storage, network_audit, network_monitor))
     app.register_blueprint(create_web_blueprint())
 
     return app

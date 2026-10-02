@@ -15,6 +15,10 @@ def create_web_blueprint():
     def graficos():
         return render_template("graficos.html")
 
+    @web_bp.route("/rede")
+    def rede():
+        return render_template("rede.html")
+
     # Redireciona a rota antiga de configurações para a URL atual
     @web_bp.route("/impressoras")
     def impressoras():

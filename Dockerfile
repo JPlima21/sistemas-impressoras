@@ -7,6 +7,9 @@ ENV FLASK_DEBUG=0
 
 WORKDIR /app/backend/app
 
+RUN apt-get update && apt-get install -y --no-install-recommends iputils-ping \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY requirements.txt .
 
 RUN pip install --no-cache-dir --upgrade pip && \
