@@ -859,8 +859,19 @@ class PrinterMonitorService:
     # método que monta o status offline, para evitar repetição de código
     def _montar_status_offline(self, nome_impressora, ip):
         dados_cache = self.cache_impressoras.get(nome_impressora, {})
+        dados_anteriores = self.resultado_global["impressoras"].get(nome_impressora, {})
+        contadores = {}
+        for prefixo, chave in (("impressoes", nome_impressora), ("copias", f"{nome_impressora}__copias")):
+            for periodo, rastreamentos, obter_total in (
+                ("dia", self.cache_rastreamento_dia, self._obter_total_cache_rastreamento_dia),
+                ("mes", self.rastreamento_mes, self._obter_total_rastreamento_mensal),
+            ):
+                campo = f"{prefixo}_{periodo}"
+                valor = dados_anteriores.get(campo)
+                contadores[campo] = valor if valor is not None else obter_total(rastreamentos.get(chave, {}))
 
         return {
+            **contadores,
             "online": False,
             "ip": dados_cache.get("ip") or ip,
             "nome": dados_cache.get("nome") or nome_impressora,

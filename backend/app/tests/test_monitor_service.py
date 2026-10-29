@@ -236,3 +236,36 @@ class InicializarEstadoTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StatusOfflineTest(unittest.TestCase):
+    def test_preserva_contadores_ao_desligar_e_recupera_rastreamento(self):
+        service = PrinterMonitorService.__new__(PrinterMonitorService)
+        service.cache_impressoras = {}
+        service.resultado_global = {"impressoras": {}}
+        service.cache_rastreamento_dia = {
+            "p1": {"impressoes_dia": 20, "impressoes_acumuladas": 5},
+            "p1__copias": {"impressoes_dia": 3, "impressoes_acumuladas": 2},
+        }
+        service.rastreamento_mes = {
+            "p1": {"impressoes_mes": 140, "impressoes_acumuladas": 10},
+            "p1__copias": {"impressoes_mes": 25, "impressoes_acumuladas": 5},
+        }
+        status = service._montar_status_offline("p1", "192.0.2.1")
+        for campo, valor in {"impressoes_dia": 25, "impressoes_mes": 150,
+                             "copias_dia": 5, "copias_mes": 30}.items():
+            self.assertEqual(valor, status[campo])
+
+        contadores = {"impressoes_dia": 0, "impressoes_mes": 160,
+                      "copias_dia": 7, "copias_mes": 35}
+        service.resultado_global["impressoras"]["p1"] = {"online": True, **contadores}
+        for _ in range(2):
+            status = service._montar_status_offline("p1", "192.0.2.1")
+            self.assertFalse(status["online"])
+            for campo, valor in contadores.items():
+                self.assertEqual(valor, status[campo])
+            service.resultado_global["impressoras"]["p1"] = status
+
+        status = service._montar_status_offline("nova", "192.0.2.2")
+        self.assertEqual(0, status["impressoes_dia"])
+        self.assertEqual(0, status["impressoes_mes"])
